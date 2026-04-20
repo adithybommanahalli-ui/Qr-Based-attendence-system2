@@ -1,0 +1,170 @@
+Build a complete, production-ready, single-run web application called "Smart Attendance System" that uses QR Code + Face Recognition + Geolocation for student attendance. The app MUST run on Replit with ONE CLICK without any errors. Follow every instruction below EXACTLY.
+
+========================================
+TECH STACK (STRICT — DO NOT CHANGE)
+========================================
+- Backend: Python Flask (single app)
+- Database: SQLite with SQLAlchemy (auto-created on first run)
+- Frontend: Plain HTML + CSS + Vanilla JavaScript (served by Flask via templates and static files)
+- Face Recognition: Use face-api.js (CDN) in the BROWSER to generate 128-D face descriptors — DO NOT use Python dlib/face_recognition (they fail on Replit). Store descriptors as JSON arrays in SQLite. Compare using Euclidean distance on the BACKEND with NumPy.
+- QR Code: Use `qrcode` Python library to generate QR, and `html5-qrcode` (CDN) for scanning in the browser.
+- Auth: JWT via PyJWT, password hashing via Werkzeug.
+- Geolocation: Browser Geolocation API + Haversine formula on backend.
+
+========================================
+PROJECT STRUCTURE
+========================================
+/
+├── main.py                  (Flask app entry, runs on 0.0.0.0:5000)
+├── requirements.txt
+├── database.db              (auto-created)
+├── /templates
+│    ├── base.html
+│    ├── index.html          (landing + login/register choice)
+│    ├── login.html
+│    ├── register.html       (includes face capture for students)
+│    ├── lecturer_dashboard.html
+│    ├── student_dashboard.html
+│    ├── session_view.html   (shows QR + live attendance list)
+│    └── mark_attendance.html (QR scan + face capture + geo)
+└── /static
+     ├── css/style.css
+     ├── js/face-capture.js
+     ├── js/qr-scanner.js
+     └── js/common.js
+
+========================================
+requirements.txt (EXACT)
+========================================
+Flask==3.0.0
+Flask-SQLAlchemy==3.1.1
+PyJWT==2.8.0
+qrcode==7.4.2
+Pillow==10.2.0
+numpy==1.26.4
+Werkzeug==3.0.1
+
+========================================
+DATABASE SCHEMA (SQLAlchemy models, auto-create on startup)
+========================================
+User: id, name, email (unique), password_hash, role ('student'|'lecturer'), created_at
+Section: id, name, code (unique 6-char), lecturer_id (FK User), created_at
+Student: id, user_id (FK User, unique), section_id (FK Section), branch, face_embedding (Text, JSON of 128 floats)
+Session: id, section_id (FK), start_time, end_time, status ('active'|'ended'), latitude, longitude, radius_meters (default 100), qr_token (unique)
+Attendance: id, session_id (FK), student_id (FK), timestamp, status ('present'|'rejected'), reason (Text, nullable)
+UniqueConstraint on (session_id, student_id) to prevent duplicates.
+
+Call db.create_all() inside `with app.app_context():` at startup.
+
+========================================
+API ROUTES (ALL MUST BE IMPLEMENTED AND WORKING)
+========================================
+Auth:
+- POST /api/auth/register  { name, email, password, role, branch?, section_code?, face_embedding? } → creates User; if role=student, also creates Student with face_embedding (JSON array) and links to section by code.
+- POST /api/auth/login     { email, password } → returns { token, user }
+- GET  /api/auth/me        (JWT) → current user
+
+Sections (lecturer only):
+- POST /api/section/create        { name } → auto-generates unique 6-char code
+- GET  /api/section/mine          → list lecturer's sections with student counts
+- GET  /api/section/<id>/students → list students in section
+
+Sessions (lecturer only):
+- POST /api/session/start  { section_id, duration_minutes, latitude, longitude, radius_meters } → creates session with qr_token (uuid4), start_time=now, end_time=now+duration, status=active. Returns session + QR image (base64 PNG) encoding the qr_token.
+- POST /api/session/end    { session_id } → sets status=ended
+- GET  /api/session/<id>   → session details + attendance list (live polling)
+- GET  /api/session/active/<section_id> → current active session
+
+Attendance (student only):
+- POST /api/attendance/mark { qr_token, face_embedding (array of 128 floats), latitude, longitude }
+  Validation order (reject with clear reason if any fails):
+    1. Session exists and status=active and now < end_time (else auto-end it)
+    2. Student belongs to session's section
+    3. Not already marked (UniqueConstraint)
+    4. Geolocation within radius (Haversine). Reject if > radius_meters.
+    5. Face match: Euclidean distance between submitted embedding and stored embedding < 0.6 (threshold). Use numpy.linalg.norm.
+  On success: insert Attendance(status='present'). On failure: insert Attendance(status='rejected', reason=...) ONLY if session+student valid, otherwise just return error.
+- GET  /api/attendance/mine → student's attendance history
+
+Use a `@token_required` decorator that parses `Authorization: Bearer <token>`, loads user into `request.current_user`. Add `@role_required('lecturer')` / `@role_required('student')`.
+
+Return JSON `{ success: bool, data|error, message }` consistently. Wrap every route in try/except returning 400/401/403/404/500 with clear messages.
+
+========================================
+FRONTEND PAGES (ALL MUST WORK END-TO-END)
+========================================
+base.html: Navbar with logo "Smart Attendance", links (Dashboard, Logout) based on localStorage token. Include face-api.js CDN: https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js and html5-qrcode: https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js
+
+index.html: Hero section + "Login" / "Register" buttons.
+
+register.html:
+- Role toggle (Student / Lecturer)
+- Common: name, email, password
+- If Student: branch, section code (6-char), MANDATORY face capture using webcam + face-api.js
+  • Load models from https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights/ (tiny_face_detector, face_landmark_68, face_recognition)
+  • Show live video, "Capture Face" button → detectSingleFace → faceLandmarks → faceDescriptor (128 floats) → store in hidden input as JSON
+  • Show success indicator once captured; block submit until captured
+- On submit → POST /api/auth/register → auto-login → redirect to dashboard
+
+login.html: email + password → stores token in localStorage → redirects by role.
+
+lecturer_dashboard.html:
+- List sections (with code + student count)
+- "Create Section" form (name only, code auto-generated and shown)
+- For each section: "View Students" + "Start Session" button
+- Start Session modal: duration (minutes input, default 10), radius (default 100m), captures lecturer's current geolocation → calls /api/session/start → redirects to session_view.html
+
+session_view.html:
+- Displays large QR code (base64 PNG from backend)
+- Shows session timer (counts down to end_time)
+- Shows live attendance list (polls GET /api/session/<id> every 5 seconds)
+- "End Session" button
+
+student_dashboard.html:
+- Shows student info + section
+- "Mark Attendance" button → goes to mark_attendance.html
+- Shows attendance history table
+
+mark_attendance.html:
+- Step 1: QR scan using html5-qrcode (camera) → extracts qr_token
+- Step 2: Request geolocation (navigator.geolocation.getCurrentPosition)
+- Step 3: Face capture using face-api.js → generate 128-D descriptor
+- Step 4: POST /api/attendance/mark with { qr_token, face_embedding, latitude, longitude }
+- Show clear success/failure message with reason
+- Handle errors: camera denied, GPS denied, face not detected, etc.
+
+========================================
+STYLE (style.css)
+========================================
+Clean modern UI: system font stack, primary color #4F46E5, white cards with subtle shadows, 12px border radius, responsive flex/grid, mobile-friendly. Buttons with hover states. Toast-style alerts (top-right). Loading spinners during camera/face/API operations.
+
+========================================
+CRITICAL RULES — MUST FOLLOW
+========================================
+1. Face recognition MUST happen in the browser using face-api.js. Python side only does numpy Euclidean distance comparison on stored 128-D arrays. DO NOT install dlib, face_recognition, opencv, or tensorflow.
+2. Use SECRET_KEY = 'smart-attendance-secret-key-change-in-prod' for JWT (HS256), token valid 24h.
+3. Haversine function in Python to compute distance in meters between two lat/lng.
+4. QR code generation: use `qrcode` lib, convert PIL image → BytesIO → base64 string → return as `data:image/png;base64,...`
+5. All fetch calls from frontend must include `Authorization: Bearer ${localStorage.getItem('token')}` when auth required.
+6. Validate ALL inputs server-side. Return 400 with readable message on invalid input.
+7. Handle CORS: allow same-origin (Flask serves both) — no CORS needed since frontend is served by Flask templates.
+8. Run Flask with: `app.run(host='0.0.0.0', port=5000, debug=False)` in main.py under `if __name__ == '__main__':`
+9. Create a `.replit` file with `run = "python main.py"` and a `replit.nix` or just rely on pip install via requirements.txt (Replit auto-detects Python).
+10. Seed ONE demo lecturer (email: lecturer@demo.com / pass: demo123) and ONE demo section (code: DEMO01) on first startup ONLY if DB is empty. Do NOT seed a student (student needs face capture).
+11. Every route, every button, every form MUST be fully functional. NO placeholders. NO "TODO". NO commented-out code.
+12. Face descriptor comparison threshold: distance < 0.6 = match.
+13. Prevent duplicate attendance via DB unique constraint AND pre-check.
+14. Auto-end expired sessions when queried or on attendance attempt.
+15. All JS must handle promise rejections and show user-friendly errors.
+16. Test the following flows work end-to-end before finishing:
+    a. Lecturer register → login → create section → start session → see QR
+    b. Student register (with face) → login → scan QR → capture face → geo → mark attendance
+    c. Lecturer sees student in live attendance list
+    d. Duplicate attendance attempt is rejected
+    e. Out-of-range location is rejected
+    f. Wrong face is rejected
+
+========================================
+DELIVERABLE
+========================================
+Generate ALL files (main.py, requirements.txt, all templates, all static CSS/JS, .replit) complete and working. The app must install dependencies, create the database, and run on port 5000 in ONE click with no manual steps. Output code for every single file in full — no ellipses, no omissions.
