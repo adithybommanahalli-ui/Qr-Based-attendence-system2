@@ -18,7 +18,14 @@ from sqlalchemy import UniqueConstraint
 
 # ─── App Config ───────────────────────────────────────────────────────────────
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+
+# Use shared PostgreSQL in both dev and production so all users hit the same DB.
+# Falls back to SQLite only when DATABASE_URL is not set (local dev without Replit).
+_db_url = os.environ.get('DATABASE_URL', 'sqlite:///database.db')
+# SQLAlchemy 2.x requires postgresql:// not postgres://
+if _db_url.startswith('postgres://'):
+    _db_url = _db_url.replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'smart-attendance-secret-key-change-in-prod'
 
