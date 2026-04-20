@@ -309,6 +309,23 @@ def api_section_create():
         db.session.rollback()
         return error_response(str(e), 500)
 
+@app.route('/api/section/lookup/<code>')
+def api_section_lookup(code):
+    try:
+        section = Section.query.filter_by(code=code.strip().upper()).first()
+        if not section:
+            return error_response(f'Section code "{code.upper()}" not found. Please check with your lecturer.', 404)
+        lecturer = User.query.filter_by(id=section.lecturer_id).first()
+        count = Student.query.filter_by(section_id=section.id).count()
+        return success_response({
+            'name': section.name,
+            'code': section.code,
+            'lecturer_name': lecturer.name if lecturer else 'Unknown',
+            'student_count': count
+        })
+    except Exception as e:
+        return error_response(str(e), 500)
+
 @app.route('/api/section/mine')
 @token_required
 @role_required('lecturer')

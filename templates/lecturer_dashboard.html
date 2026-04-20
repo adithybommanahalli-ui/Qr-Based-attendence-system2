@@ -29,8 +29,18 @@
         <label>Section Name</label>
         <input type="text" id="newSectionName" class="form-control" placeholder="e.g. Introduction to CS — Group A"/>
       </div>
-      <div id="newSectionCode" class="code-result" style="display:none">
-        Section code: <strong id="sectionCodeDisplay"></strong>
+      <div id="newSectionCode" style="display:none;margin-top:1rem">
+        <div class="section-code-block" style="border-radius:8px;border:1.5px solid #ddd6fe">
+          <div class="section-code-label">Your Section Enrollment Code</div>
+          <div class="section-code-row">
+            <div class="section-code-big" id="sectionCodeDisplay"></div>
+            <button class="btn btn-sm btn-outline copy-btn" onclick="copyCode(document.getElementById('sectionCodeDisplay').textContent, this)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Copy
+            </button>
+          </div>
+          <div class="section-code-hint">Share this exact code with your students so they can enroll during registration.</div>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -119,9 +129,19 @@ function renderSections(sections) {
       <div class="section-card-header">
         <div class="section-info">
           <h3>${escHtml(s.name)}</h3>
-          <div class="section-code-badge">${escHtml(s.code)}</div>
+          <div class="student-count-sm">${s.student_count} student${s.student_count !== 1 ? 's' : ''}</div>
         </div>
-        <div class="student-count">${s.student_count} <small>students</small></div>
+      </div>
+      <div class="section-code-block">
+        <div class="section-code-label">Student Enrollment Code</div>
+        <div class="section-code-row">
+          <div class="section-code-big">${escHtml(s.code)}</div>
+          <button class="btn btn-sm btn-outline copy-btn" onclick="copyCode('${escHtml(s.code)}', this)" title="Copy code">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy
+          </button>
+        </div>
+        <div class="section-code-hint">Share this code with students so they can enroll during registration</div>
       </div>
       <div class="section-card-footer">
         <button class="btn btn-sm btn-outline" onclick="viewStudents(${s.id},'${escHtml(s.name)}')">View Students</button>
@@ -129,6 +149,23 @@ function renderSections(sections) {
       </div>
     </div>
   `).join('');
+}
+
+function copyCode(code, btn) {
+  navigator.clipboard.writeText(code).then(() => {
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+    btn.style.borderColor = 'var(--success)';
+    btn.style.color = 'var(--success)';
+    setTimeout(() => {
+      btn.innerHTML = orig;
+      btn.style.borderColor = '';
+      btn.style.color = '';
+    }, 2000);
+    showToast(`Code "${code}" copied to clipboard!`, 'success');
+  }).catch(() => {
+    showToast(`Code: ${code}`, 'info', 8000);
+  });
 }
 
 async function createSection() {
@@ -143,7 +180,7 @@ async function createSection() {
     showToast(`Section created! Code: ${res.data.code}`, 'success');
     await loadDashboard();
     document.getElementById('newSectionName').value = '';
-    setTimeout(() => closeModal('createSectionModal'), 2000);
+    document.getElementById('newSectionCode').style.display = 'block';
   } catch(err) {
     showToast(err.message || 'Failed to create section', 'error');
   } finally {

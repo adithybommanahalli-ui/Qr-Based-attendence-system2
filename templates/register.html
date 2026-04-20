@@ -38,8 +38,12 @@
             <input type="text" id="branch" class="form-control" placeholder="e.g. Computer Science"/>
           </div>
           <div class="form-group">
-            <label>Section Code</label>
-            <input type="text" id="sectionCode" class="form-control" placeholder="e.g. DEMO01" maxlength="6" style="text-transform:uppercase"/>
+            <label>Section Code <span style="color:var(--gray-400);font-weight:400">(6-character code from your lecturer)</span></label>
+            <div style="display:flex;gap:.5rem">
+              <input type="text" id="sectionCode" class="form-control" placeholder="e.g. DEMO01" maxlength="6" style="text-transform:uppercase;letter-spacing:.12em;font-weight:700;font-size:1.1rem" oninput="clearSectionVerify()"/>
+              <button type="button" class="btn btn-outline" id="verifyCodeBtn" onclick="verifySectionCode()" style="white-space:nowrap;flex-shrink:0">Verify Code</button>
+            </div>
+            <div id="sectionVerifyResult" style="display:none;margin-top:.5rem"></div>
           </div>
         </div>
 
@@ -96,6 +100,46 @@ function setRole(role) {
   document.getElementById('studentFields').style.display = role === 'student' ? 'block' : 'none';
   document.getElementById('roleStudent').classList.toggle('active', role === 'student');
   document.getElementById('roleLecturer').classList.toggle('active', role === 'lecturer');
+}
+
+function clearSectionVerify() {
+  const el = document.getElementById('sectionVerifyResult');
+  el.style.display = 'none';
+  el.innerHTML = '';
+}
+
+async function verifySectionCode() {
+  const code = document.getElementById('sectionCode').value.trim().toUpperCase();
+  const resultEl = document.getElementById('sectionVerifyResult');
+  const btn = document.getElementById('verifyCodeBtn');
+  if (!code) {
+    resultEl.innerHTML = '<div class="verify-error">Please enter a section code first.</div>';
+    resultEl.style.display = 'block';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Checking...';
+  try {
+    const res = await fetch(`/api/section/lookup/${encodeURIComponent(code)}`);
+    const data = await res.json();
+    if (data.success) {
+      resultEl.innerHTML = `<div class="verify-success">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Found: <strong>${escHtml(data.data.name)}</strong> &mdash; Lecturer: ${escHtml(data.data.lecturer_name)} (${data.data.student_count} students enrolled)
+      </div>`;
+    } else {
+      resultEl.innerHTML = `<div class="verify-error">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        ${escHtml(data.message || 'Section not found.')}
+      </div>`;
+    }
+  } catch(err) {
+    resultEl.innerHTML = `<div class="verify-error">Could not verify: ${escHtml(err.message)}</div>`;
+  } finally {
+    resultEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Verify Code';
+  }
 }
 
 async function startCamera() {

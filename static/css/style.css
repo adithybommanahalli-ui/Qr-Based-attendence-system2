@@ -163,6 +163,14 @@ a:hover { text-decoration: underline; }
 .student-count { text-align: center; font-size: 1.8rem; font-weight: 800; color: var(--primary); line-height: 1; }
 .student-count small { display: block; font-size: .7rem; color: var(--gray-400); font-weight: 500; }
 .section-card-footer { padding: .9rem 1.25rem; border-top: 1px solid var(--gray-100); display: flex; gap: .75rem; background: var(--gray-50); }
+.section-code-block { padding: .85rem 1.25rem; background: var(--primary-light); border-top: 1px solid #ddd6fe; border-bottom: 1px solid #ddd6fe; }
+.section-code-label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--primary); margin-bottom: .4rem; }
+.section-code-row { display: flex; align-items: center; gap: .75rem; }
+.section-code-big { font-size: 1.8rem; font-weight: 900; letter-spacing: .2em; color: var(--primary); font-family: monospace; flex: 1; }
+.section-code-hint { font-size: .75rem; color: #6d28d9; margin-top: .4rem; line-height: 1.4; }
+.student-count-sm { font-size: .8rem; color: var(--gray-400); font-weight: 500; margin-top: .15rem; }
+.verify-success { display: flex; align-items: center; gap: .5rem; background: var(--success-bg); color: #166534; padding: .6rem .9rem; border-radius: 8px; font-size: .875rem; font-weight: 500; }
+.verify-error { display: flex; align-items: center; gap: .5rem; background: var(--danger-bg); color: var(--danger); padding: .6rem .9rem; border-radius: 8px; font-size: .875rem; font-weight: 500; }
 
 /* ── Modals ───────────────────────────────────────────── */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 500; display: flex; align-items: center; justify-content: center; padding: 1rem; }
