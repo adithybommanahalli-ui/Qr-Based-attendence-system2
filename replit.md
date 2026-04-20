@@ -27,9 +27,8 @@ templates/
   mark_attendance.html         QR scan → geo → face → submit
 static/
   css/style.css
-  js/common.js                 API helpers, toast, auth guards
-  js/face-capture.js           face-api.js model loading + detection
-  js/qr-scanner.js             QR scanner helpers
+  js/common.js                 API helpers, toast, auth guards, particles, cursor spotlight, card tilt, magnet effect, lazy script loader, device perf detection
+  js/face-capture.js           (legacy — face API now inlined per-page with lazy loadScript())
 ```
 
 ## Demo Credentials (auto-seeded)
@@ -44,6 +43,21 @@ Workflow: `python main.py` on port 5000
 - POST /api/section/create, GET /api/section/mine, GET /api/section/<id>/students
 - POST /api/session/start, POST /api/session/end, GET /api/session/<id>
 - POST /api/attendance/mark, GET /api/attendance/mine
+
+## Frontend UX Overhaul (Applied)
+- **Dark futuristic theme**: Neon indigo (#6366f1) + cyan (#22d3ee) on deep dark (#07071a)
+- **Ambient particles canvas**: floating particles adapt count to device performance tier
+- **Cursor spotlight**: subtle radial glow follows the mouse (skipped on low-end devices)
+- **Card 3D tilt**: perspective rotation follows cursor proximity on all cards
+- **Button magnetic effect**: primary buttons subtly pull toward the cursor
+- **Lazy loading**: face-api.js and html5-qrcode are loaded on-demand per page, not globally
+- **Device-adaptive effects**: hardware concurrency + device memory detection gates effects
+- **Session view**: radar sweep background, LIVE pulse indicator, urgency mode + red timer when <60s remaining, per-row new-attendance pulse animation
+- **Mark attendance**: 4-step progress indicator (QR → Location → Face → Result), rich error taxonomy (face mismatch / out of range / session expired / not enrolled), camera/geo recovery cards with step-by-step instructions, duplicate detection state, processing state with rotating messages
+- **Register**: lazy-loaded face-api.js, section code inline verify button with lecturer name preview
+- **Lecturer dashboard**: section code copy button, inline student list modal, geo-aware session start with fallback to no-restriction mode
+- **Student dashboard**: skeleton loaders during fetch, rich empty state with CTA
+- **Reduced-motion support**: `@media (prefers-reduced-motion)` disables all transitions/animations
 
 ## Attendance Validation Order
 1. Session active & not expired

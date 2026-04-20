@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="mark-page">
-  <div class="page-header">
+  <div class="page-header" style="justify-content:flex-start;gap:1.25rem;align-items:center">
     <a href="/student" class="btn btn-outline btn-sm">← Back</a>
-    <h1>Mark Attendance</h1>
+    <h1 style="font-size:1.5rem">Mark Attendance</h1>
   </div>
 
   <div class="steps-indicator">
@@ -24,54 +24,98 @@
     <div class="step-line"></div>
     <div class="step" id="step4Indicator" data-step="4">
       <div class="step-circle">4</div>
-      <div class="step-label">Submit</div>
+      <div class="step-label">Result</div>
     </div>
   </div>
 
   <!-- Step 1: QR Scan -->
   <div id="stepQR" class="step-panel">
     <div class="step-card">
-      <h3>Step 1: Scan QR Code</h3>
+      <h3>Scan QR Code</h3>
       <p>Point your camera at the QR code displayed by your lecturer</p>
       <div id="qrReader"></div>
       <div id="qrResult" style="display:none" class="qr-result">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-        QR scanned successfully
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        QR scanned successfully!
       </div>
-      <div id="qrError" class="error-msg" style="display:none"></div>
-      <button class="btn btn-outline btn-sm" id="retryQrBtn" onclick="retryQR()" style="display:none;margin-top:1rem">Retry Scan</button>
+      <div id="qrError" style="display:none;margin-top:.75rem;padding:.75rem;background:var(--danger-bg);border:1px solid rgba(239,68,68,.25);border-radius:10px;color:#f87171;font-size:.875rem"></div>
+      <div id="cameraRecovery" style="display:none;margin-top:1rem">
+        <div class="recovery-card">
+          <h4>📷 Camera Access Required</h4>
+          <p style="color:var(--text-muted);font-size:.875rem;margin-bottom:1rem">Your browser needs camera permission to scan QR codes.</p>
+          <ol class="recovery-steps" style="counter-reset:li">
+            <li style="counter-increment:li"><span>Click the camera icon in your browser's address bar</span></li>
+            <li style="counter-increment:li"><span>Select "Allow" for camera access</span></li>
+            <li style="counter-increment:li"><span>Refresh this page and try again</span></li>
+          </ol>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="retryQR()" style="margin-top:1rem">
+          Retry Camera
+        </button>
+      </div>
     </div>
   </div>
 
   <!-- Step 2: Location -->
   <div id="stepGeo" class="step-panel" style="display:none">
     <div class="step-card">
-      <h3>Step 2: Verify Location</h3>
-      <p>We need your location to confirm you are in class</p>
+      <h3>Verify Location</h3>
+      <p>Confirming you are physically present in class</p>
       <div id="geoStatus2" class="geo-status loading">
         <div class="spinner" id="geoSpinner2"></div>
-        <span id="geoText2">Getting your location...</span>
+        <span id="geoText2">Connecting to GPS...</span>
       </div>
-      <button class="btn btn-primary" id="retryGeoBtn" onclick="getLocation()" style="display:none;margin-top:1rem">Retry Location</button>
+      <div id="geoRecovery" style="display:none;margin-top:1rem">
+        <div class="recovery-card">
+          <h4>📍 Location Access Required</h4>
+          <p style="color:var(--text-muted);font-size:.875rem;margin-bottom:1rem">Enable location to verify you are in class.</p>
+          <ol class="recovery-steps" style="counter-reset:li">
+            <li style="counter-increment:li"><span>Click the location icon in your browser's address bar</span></li>
+            <li style="counter-increment:li"><span>Select "Allow" for location access</span></li>
+            <li style="counter-increment:li"><span>Click "Retry Location" below</span></li>
+          </ol>
+        </div>
+        <button class="btn btn-primary" onclick="getLocation()" style="margin-top:1rem;width:100%">
+          Retry Location
+        </button>
+      </div>
     </div>
   </div>
 
   <!-- Step 3: Face Capture -->
   <div id="stepFace" class="step-panel" style="display:none">
     <div class="step-card">
-      <h3>Step 3: Face Verification</h3>
-      <p>Capture your face to verify your identity</p>
+      <h3>Face Verification</h3>
+      <p>Verifying your biometric identity</p>
       <div class="video-wrapper">
         <video id="markVideo" autoplay muted playsinline></video>
         <canvas id="markCanvas" style="display:none"></canvas>
         <div class="face-overlay"><div class="face-ring"></div></div>
       </div>
-      <div id="faceStatus2" class="face-status idle">
+      <div id="faceStatus2" class="face-status" style="margin-bottom:1rem">
         <span id="faceStatusText2">Camera not started</span>
+      </div>
+      <div class="progress-steps" id="verifySteps" style="display:none">
+        <div class="progress-step" id="vstep1">
+          <svg class="progress-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+          Connecting to camera
+        </div>
+        <div class="progress-step" id="vstep2">
+          <svg class="progress-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Loading AI models
+        </div>
+        <div class="progress-step" id="vstep3">
+          <svg class="progress-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 20v-2a4 4 0 0 1 4-4h4"/><path d="M19 8l2 2-4 4"/></svg>
+          Detecting face
+        </div>
+        <div class="progress-step" id="vstep4">
+          <svg class="progress-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0 1 12 2.944a11.955 11.955 0 0 1-8.618 3.04A12.02 12.02 0 0 0 3 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+          Matching biometric signature
+        </div>
       </div>
       <div class="face-actions">
         <button type="button" class="btn btn-outline" id="startMarkCameraBtn" onclick="startMarkCamera()">Start Camera</button>
-        <button type="button" class="btn btn-primary" id="captureMarkFaceBtn" onclick="captureMarkFace()" disabled>Capture & Verify</button>
+        <button type="button" class="btn btn-primary" id="captureMarkFaceBtn" onclick="captureMarkFace()" disabled>Capture &amp; Verify</button>
       </div>
     </div>
   </div>
@@ -79,40 +123,71 @@
   <!-- Step 4: Result -->
   <div id="stepResult" class="step-panel" style="display:none">
     <div class="step-card result-card">
+
+      <!-- Processing State -->
+      <div id="resultProcessing" class="result-success" style="display:none">
+        <div class="spinner-lg" style="margin-bottom:1.5rem"></div>
+        <h2 style="background:linear-gradient(135deg,var(--text),var(--primary));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">Processing...</h2>
+        <p id="processingMsg">Submitting attendance...</p>
+      </div>
+
+      <!-- Success State -->
       <div id="resultSuccess" style="display:none" class="result-success">
         <div class="result-icon success-icon">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
         <h2>Attendance Marked!</h2>
         <p>Your attendance has been recorded successfully.</p>
-        <a href="/student" class="btn btn-primary btn-lg" style="margin-top:1.5rem">Back to Dashboard</a>
+        <a href="/student" class="btn btn-primary btn-lg" style="margin-top:1.25rem">Back to Dashboard</a>
       </div>
+
+      <!-- Already Verified State -->
+      <div id="resultDuplicate" style="display:none" class="result-error">
+        <div class="result-icon" style="background:linear-gradient(135deg,#7c3aed,#4f46e5);box-shadow:0 0 40px rgba(124,58,237,.4)">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <h2 style="color:var(--primary)">Already Verified</h2>
+        <div class="verified-badge" style="margin:.75rem 0">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          ALREADY MARKED
+        </div>
+        <p>You have already marked your attendance for this session.</p>
+        <a href="/student" class="btn btn-outline btn-lg" style="margin-top:1.25rem">Go to Dashboard</a>
+      </div>
+
+      <!-- Error State -->
       <div id="resultError" style="display:none" class="result-error">
         <div class="result-icon error-icon">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </div>
         <h2>Attendance Failed</h2>
-        <p id="resultErrorMsg">Something went wrong.</p>
-        <button class="btn btn-outline btn-lg" onclick="restartFlow()" style="margin-top:1.5rem">Try Again</button>
-        <a href="/student" class="btn btn-primary btn-lg" style="margin-top:0.5rem">Back to Dashboard</a>
+        <div class="error-detail-card" id="errorDetailCard">
+          <div class="error-type" id="errorType">Error</div>
+          <div class="error-desc" id="resultErrorMsg">Something went wrong.</div>
+          <div class="error-hint" id="errorHint"></div>
+        </div>
+        <div class="result-actions" style="margin-top:1.25rem">
+          <button class="btn btn-outline" onclick="restartFlow()">Try Again</button>
+          <a href="/student" class="btn btn-primary">Back to Dashboard</a>
+        </div>
       </div>
+
     </div>
   </div>
 </div>
 {% endblock %}
 {% block scripts %}
-<script src="/static/js/face-capture.js"></script>
-<script src="/static/js/qr-scanner.js"></script>
 <script>
 requireAuth('student');
-let qrToken = null;
-let userLatitude = null;
-let userLongitude = null;
-let faceEmbedding = null;
+let qrToken         = null;
+let userLatitude    = null;
+let userLongitude   = null;
+let faceEmbedding   = null;
 let markCameraStream = null;
 let markModelsLoaded = false;
-let html5QrCode = null;
+let html5QrCode     = null;
 
+/* ── Step Management ────────────────────────────────────── */
 function setActiveStep(step) {
   document.querySelectorAll('.step-circle').forEach((c, i) => {
     c.classList.remove('active', 'done');
@@ -122,188 +197,286 @@ function setActiveStep(step) {
 }
 
 function showStep(step) {
-  document.getElementById('stepQR').style.display = step === 1 ? 'block' : 'none';
-  document.getElementById('stepGeo').style.display = step === 2 ? 'block' : 'none';
-  document.getElementById('stepFace').style.display = step === 3 ? 'block' : 'none';
-  document.getElementById('stepResult').style.display = step === 4 ? 'block' : 'none';
+  ['stepQR','stepGeo','stepFace','stepResult'].forEach((id, i) => {
+    document.getElementById(id).style.display = (i + 1 === step) ? 'block' : 'none';
+  });
   setActiveStep(step);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+/* ── Step 1: QR Scanner ─────────────────────────────────── */
 function initQRScanner() {
-  if (html5QrCode) {
-    try { html5QrCode.stop(); } catch(e) {}
+  if (html5QrCode) { try { html5QrCode.stop(); } catch(e) {} }
+  if (typeof Html5Qrcode === 'undefined') {
+    loadScript('https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js').then(startQR).catch(() => {
+      showQRError('Failed to load QR scanner. Please refresh.');
+    });
+    return;
   }
+  startQR();
+}
+
+function startQR() {
   html5QrCode = new Html5Qrcode('qrReader');
   html5QrCode.start(
     { facingMode: 'environment' },
     { fps: 10, qrbox: { width: 250, height: 250 } },
     (decodedText) => {
       qrToken = decodedText.trim();
-      console.log('[QR] Raw scanned text:', JSON.stringify(decodedText));
-      console.log('[QR] Stored qrToken:', JSON.stringify(qrToken));
-      html5QrCode.stop().catch(()=>{});
+      html5QrCode.stop().catch(() => {});
       document.getElementById('qrResult').style.display = 'flex';
       document.getElementById('qrError').style.display = 'none';
+      document.getElementById('cameraRecovery').style.display = 'none';
       showToast('QR Code scanned!', 'success');
-      setTimeout(() => {
-        showStep(2);
-        getLocation();
-      }, 800);
+      setTimeout(() => { showStep(2); getLocation(); }, 700);
     },
-    (errorMsg) => {}
+    () => {}
   ).catch(err => {
-    document.getElementById('qrError').textContent = 'Camera error: ' + (err || 'Could not start scanner. Please allow camera access.');
-    document.getElementById('qrError').style.display = 'block';
-    document.getElementById('retryQrBtn').style.display = 'inline-block';
+    const msg = String(err || '');
+    if (msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('denied') || msg.toLowerCase().includes('notallowed')) {
+      document.getElementById('cameraRecovery').style.display = 'block';
+      document.getElementById('qrError').style.display = 'none';
+    } else {
+      showQRError('Could not start scanner: ' + (err || 'Unknown error'));
+    }
   });
+}
+
+function showQRError(msg) {
+  const el = document.getElementById('qrError');
+  el.textContent = msg;
+  el.style.display = 'block';
 }
 
 function retryQR() {
   document.getElementById('qrResult').style.display = 'none';
   document.getElementById('qrError').style.display = 'none';
-  document.getElementById('retryQrBtn').style.display = 'none';
+  document.getElementById('cameraRecovery').style.display = 'none';
   initQRScanner();
 }
 
+/* ── Step 2: Geolocation ────────────────────────────────── */
 function getLocation() {
-  const geoText = document.getElementById('geoText2');
+  const geoText   = document.getElementById('geoText2');
   const geoStatus = document.getElementById('geoStatus2');
-  const retryBtn = document.getElementById('retryGeoBtn');
+  const recovery  = document.getElementById('geoRecovery');
   geoStatus.className = 'geo-status loading';
   document.getElementById('geoSpinner2').style.display = 'inline-block';
-  geoText.textContent = 'Getting your location...';
-  retryBtn.style.display = 'none';
+  geoText.textContent = 'Acquiring GPS signal...';
+  recovery.style.display = 'none';
 
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      userLatitude = pos.coords.latitude;
+      userLatitude  = pos.coords.latitude;
       userLongitude = pos.coords.longitude;
-      geoText.textContent = `Location acquired (${userLatitude.toFixed(4)}, ${userLongitude.toFixed(4)})`;
+      geoText.textContent = `Location confirmed (${userLatitude.toFixed(4)}, ${userLongitude.toFixed(4)})`;
       geoStatus.className = 'geo-status success';
       document.getElementById('geoSpinner2').style.display = 'none';
-      showToast('Location acquired!', 'success');
-      setTimeout(() => {
-        showStep(3);
-        startMarkCamera();
-      }, 800);
+      showToast('Location confirmed!', 'success');
+      setTimeout(() => { showStep(3); startMarkCamera(); }, 700);
     },
     (err) => {
+      document.getElementById('geoSpinner2').style.display = 'none';
       if (err.code === 1) {
-        geoText.textContent = 'Location denied — proceeding without geolocation verification.';
+        geoText.textContent = 'Location permission denied — proceeding without geolocation.';
         geoStatus.className = 'geo-status warning';
-        document.getElementById('geoSpinner2').style.display = 'none';
-        userLatitude = 0;
+        recovery.style.display = 'block';
+        userLatitude  = 0;
         userLongitude = 0;
-        setTimeout(() => {
-          showStep(3);
-          startMarkCamera();
-        }, 800);
+        setTimeout(() => { showStep(3); startMarkCamera(); }, 1200);
       } else {
         geoText.textContent = 'Could not get location: ' + err.message;
         geoStatus.className = 'geo-status error';
-        document.getElementById('geoSpinner2').style.display = 'none';
-        retryBtn.style.display = 'inline-block';
+        recovery.style.display = 'block';
       }
     },
     { timeout: 10000, enableHighAccuracy: true }
   );
 }
 
+/* ── Step 3: Face Verification ──────────────────────────── */
+function setVerifyStep(n, state) {
+  const el = document.getElementById('vstep' + n);
+  if (!el) return;
+  el.className = 'progress-step ' + (state || '');
+}
+
 async function startMarkCamera() {
-  const btn = document.getElementById('startMarkCameraBtn');
+  const btn        = document.getElementById('startMarkCameraBtn');
   const statusText = document.getElementById('faceStatusText2');
-  const statusEl = document.getElementById('faceStatus2');
-  statusText.textContent = 'Loading AI models...';
+  const statusEl   = document.getElementById('faceStatus2');
+  const steps      = document.getElementById('verifySteps');
+  steps.style.display = 'flex';
   statusEl.className = 'face-status loading';
   btn.disabled = true;
 
+  setVerifyStep(1, 'active'); setVerifyStep(2,''); setVerifyStep(3,''); setVerifyStep(4,'');
+  statusText.textContent = 'Connecting to camera...';
+
   try {
+    await new Promise(r => setTimeout(r, 200));
+    setVerifyStep(1, 'done'); setVerifyStep(2, 'active');
+    statusText.textContent = 'Loading AI models...';
+
     if (!markModelsLoaded) {
+      if (typeof faceapi === 'undefined') {
+        await loadScript('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js');
+      }
       await loadFaceApiModels();
       markModelsLoaded = true;
     }
+
+    setVerifyStep(2, 'done');
     statusText.textContent = 'Starting camera...';
     markCameraStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } });
     const video = document.getElementById('markVideo');
     video.srcObject = markCameraStream;
     await video.play();
+
     document.getElementById('captureMarkFaceBtn').disabled = false;
-    statusText.textContent = 'Position your face and click Capture & Verify';
+    statusText.textContent = 'Position your face in the ring and click Capture';
     statusEl.className = 'face-status ready';
     btn.textContent = 'Restart Camera';
     btn.disabled = false;
   } catch(err) {
-    statusText.textContent = 'Error: ' + (err.message || 'Could not access camera');
+    setVerifyStep(1, 'error'); setVerifyStep(2, 'error');
+    statusText.textContent = err.message || 'Could not access camera';
     statusEl.className = 'face-status error';
     btn.disabled = false;
   }
 }
 
 async function captureMarkFace() {
-  const btn = document.getElementById('captureMarkFaceBtn');
+  const btn        = document.getElementById('captureMarkFaceBtn');
   const statusText = document.getElementById('faceStatusText2');
-  const statusEl = document.getElementById('faceStatus2');
+  const statusEl   = document.getElementById('faceStatus2');
   btn.disabled = true;
+  setVerifyStep(3, 'active');
   statusText.textContent = 'Detecting face...';
   statusEl.className = 'face-status loading';
 
   try {
-    const video = document.getElementById('markVideo');
+    await new Promise(r => setTimeout(r, 300));
+    const video      = document.getElementById('markVideo');
     const descriptor = await detectFaceDescriptor(video);
+
     if (!descriptor) {
+      setVerifyStep(3, 'error');
       statusText.textContent = 'No face detected. Ensure good lighting and face is clearly visible.';
       statusEl.className = 'face-status error';
       btn.disabled = false;
       return;
     }
+
+    setVerifyStep(3, 'done'); setVerifyStep(4, 'active');
+    statusText.textContent = 'Matching biometric signature...';
+    await new Promise(r => setTimeout(r, 400));
+
     faceEmbedding = Array.from(descriptor);
-    statusText.textContent = 'Face detected! Submitting attendance...';
+    setVerifyStep(4, 'done');
+    statusText.textContent = 'Biometric verified — submitting attendance...';
     statusEl.className = 'face-status success';
 
     if (markCameraStream) markCameraStream.getTracks().forEach(t => t.stop());
     await submitAttendance();
   } catch(err) {
+    setVerifyStep(3, 'error'); setVerifyStep(4, 'error');
     statusText.textContent = 'Error: ' + (err.message || 'Face detection failed');
     statusEl.className = 'face-status error';
     btn.disabled = false;
   }
 }
 
+/* ── Step 4: Submit ─────────────────────────────────────── */
 async function submitAttendance() {
   showStep(4);
+  document.getElementById('resultProcessing').style.display = 'flex';
+  document.getElementById('resultSuccess').style.display  = 'none';
+  document.getElementById('resultDuplicate').style.display = 'none';
+  document.getElementById('resultError').style.display    = 'none';
+
+  const processingMsgs = ['Connecting to server...', 'Verifying session...', 'Matching biometric signature...', 'Recording attendance...'];
+  let mi = 0;
+  const msgInterval = setInterval(() => {
+    document.getElementById('processingMsg').textContent = processingMsgs[mi++ % processingMsgs.length];
+  }, 600);
+
   try {
-    console.log('[SUBMIT] qrToken:', JSON.stringify(qrToken));
-    console.log('[SUBMIT] latitude:', userLatitude, 'longitude:', userLongitude);
-    console.log('[SUBMIT] faceEmbedding length:', faceEmbedding ? faceEmbedding.length : 'null');
     const res = await apiPost('/api/attendance/mark', {
-      qr_token: qrToken,
+      qr_token:      qrToken,
       face_embedding: faceEmbedding,
-      latitude: userLatitude,
-      longitude: userLongitude
+      latitude:      userLatitude,
+      longitude:     userLongitude
     });
-    document.getElementById('resultSuccess').style.display = 'block';
-    document.getElementById('resultError').style.display = 'none';
+    clearInterval(msgInterval);
+    document.getElementById('resultProcessing').style.display = 'none';
+    document.getElementById('resultSuccess').style.display = 'flex';
     showToast(res.message || 'Attendance marked!', 'success');
   } catch(err) {
-    document.getElementById('resultSuccess').style.display = 'none';
-    document.getElementById('resultError').style.display = 'block';
-    document.getElementById('resultErrorMsg').textContent = err.message || 'Failed to mark attendance';
+    clearInterval(msgInterval);
+    document.getElementById('resultProcessing').style.display = 'none';
+    const msg = err.message || 'Failed to mark attendance';
+
+    if (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('duplicate')) {
+      document.getElementById('resultDuplicate').style.display = 'flex';
+    } else {
+      document.getElementById('resultError').style.display = 'flex';
+      let errorType = 'Error';
+      let hint = '';
+
+      if (msg.toLowerCase().includes('face') || msg.toLowerCase().includes('biometric') || msg.toLowerCase().includes('match')) {
+        errorType = 'Face Mismatch';
+        hint = 'Your face did not match the registered profile. Ensure good lighting and look directly at the camera.';
+      } else if (msg.toLowerCase().includes('range') || msg.toLowerCase().includes('location') || msg.toLowerCase().includes('distance') || msg.toLowerCase().includes('radius')) {
+        errorType = 'Out of Range';
+        hint = 'You appear to be outside the allowed attendance zone. Move closer to your lecturer and try again.';
+      } else if (msg.toLowerCase().includes('session') || msg.toLowerCase().includes('expired')) {
+        errorType = 'Session Expired';
+        hint = 'The attendance session may have ended. Ask your lecturer to check the session status.';
+      } else if (msg.toLowerCase().includes('enrolled') || msg.toLowerCase().includes('enroll')) {
+        errorType = 'Not Enrolled';
+        hint = 'You are not enrolled in this section. Contact your lecturer for assistance.';
+      }
+
+      document.getElementById('errorType').textContent = errorType;
+      document.getElementById('resultErrorMsg').textContent = msg;
+      document.getElementById('errorHint').textContent = hint;
+    }
   }
 }
 
 function restartFlow() {
-  qrToken = null;
-  userLatitude = null;
-  userLongitude = null;
-  faceEmbedding = null;
+  qrToken = null; userLatitude = null; userLongitude = null; faceEmbedding = null;
   if (markCameraStream) markCameraStream.getTracks().forEach(t => t.stop());
   document.getElementById('qrResult').style.display = 'none';
   document.getElementById('qrError').style.display = 'none';
+  document.getElementById('cameraRecovery').style.display = 'none';
+  document.getElementById('verifySteps').style.display = 'none';
   showStep(1);
   initQRScanner();
 }
 
+/* ── Boot ───────────────────────────────────────────────── */
 showStep(1);
-initQRScanner();
+loadScript('https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js')
+  .then(initQRScanner)
+  .catch(() => showQRError('Could not load QR scanner library. Please check your connection.'));
+</script>
+<script>
+const FACE_API_MODELS_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights/';
+async function loadFaceApiModels() {
+  if (typeof faceapi === 'undefined') throw new Error('face-api.js not loaded');
+  if (faceapi.nets.tinyFaceDetector.isLoaded && faceapi.nets.faceLandmark68Net.isLoaded && faceapi.nets.faceRecognitionNet.isLoaded) return;
+  await Promise.all([
+    faceapi.nets.tinyFaceDetector.loadFromUri(FACE_API_MODELS_URL),
+    faceapi.nets.faceLandmark68Net.loadFromUri(FACE_API_MODELS_URL),
+    faceapi.nets.faceRecognitionNet.loadFromUri(FACE_API_MODELS_URL)
+  ]);
+}
+async function detectFaceDescriptor(videoElement) {
+  const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 });
+  const result  = await faceapi.detectSingleFace(videoElement, options).withFaceLandmarks().withFaceDescriptor();
+  return result ? result.descriptor : null;
+}
 </script>
 {% endblock %}

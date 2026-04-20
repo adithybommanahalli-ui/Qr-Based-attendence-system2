@@ -2,9 +2,16 @@
 {% block content %}
 <div class="session-page">
   <div class="page-header">
-    <div>
-      <h1 id="sessionTitle">Active Session</h1>
-      <p class="subtitle" id="sessionSection">Loading...</p>
+    <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+      <div>
+        <div style="display:flex;align-items:center;gap:.75rem">
+          <h1 id="sessionTitle">Active Session</h1>
+          <span class="live-indicator" id="liveIndicator">
+            <span class="live-dot"></span>LIVE
+          </span>
+        </div>
+        <p class="subtitle" id="sessionSection">Loading...</p>
+      </div>
     </div>
     <div class="session-timer-wrap">
       <div class="timer-label">Time Remaining</div>
@@ -13,20 +20,36 @@
   </div>
 
   <div class="session-layout">
-    <div class="qr-card">
-      <h3>Session QR Code</h3>
-      <p class="qr-hint">Students scan this to mark attendance</p>
-      <div class="qr-container">
-        <div id="qrLoading" class="qr-loading"><div class="spinner-lg"></div></div>
-        <img id="qrImage" style="display:none" alt="QR Code"/>
+    <div class="qr-card" style="position:relative;overflow:hidden">
+      <div class="radar-bg">
+        <div class="radar-sweep"></div>
+        <div class="radar-ring" style="inset:15%"></div>
+        <div class="radar-ring" style="inset:30%"></div>
+        <div class="radar-ring" style="inset:45%"></div>
       </div>
-      <div class="qr-token-display" id="qrTokenDisplay" style="display:none">
-        Token: <code id="qrTokenText"></code>
+      <div style="position:relative;z-index:1">
+        <h3>Session QR Code</h3>
+        <p class="qr-hint">Students scan this to mark attendance</p>
+        <div class="qr-container">
+          <div id="qrLoading" class="qr-loading">
+            <div class="spinner-lg"></div>
+            <span style="font-size:.8rem;color:var(--text-muted)">Generating QR code...</span>
+          </div>
+          <img id="qrImage" style="display:none" alt="QR Code"/>
+        </div>
+        <div class="qr-token-display" id="qrTokenDisplay" style="display:none">
+          Token: <code id="qrTokenText"></code>
+        </div>
+        <div class="session-actions">
+          <button class="btn btn-danger btn-full" onclick="endSession()" id="endSessionBtn">
+            <span class="btn-text">End Session</span>
+            <span class="spinner" style="display:none"></span>
+          </button>
+        </div>
+        <div id="sessionEnded" class="session-ended-badge" style="display:none">
+          ⬛ Session Ended
+        </div>
       </div>
-      <div class="session-actions">
-        <button class="btn btn-danger" onclick="endSession()" id="endSessionBtn">End Session</button>
-      </div>
-      <div id="sessionEnded" class="session-ended-badge" style="display:none">Session Ended</div>
     </div>
 
     <div class="attendance-card">
@@ -37,7 +60,7 @@
         </div>
       </div>
       <div id="attendanceList" class="attendance-list">
-        <div class="empty-state-sm">No attendance records yet.</div>
+        <div class="empty-state-sm">Waiting for students to scan...</div>
       </div>
     </div>
   </div>
@@ -47,15 +70,18 @@
 <script>
 requireAuth('lecturer');
 const SESSION_ID = {{ session_id }};
-let pollInterval = null;
-let endTime = null;
-let timerInterval = null;
-let sessionActive = true;
+let pollInterval   = null;
+let endTime        = null;
+let timerInterval  = null;
+let sessionActive  = true;
+let lastCount      = 0;
+let urgencyActive  = false;
+let knownIds       = new Set();
 
 async function loadSession() {
   try {
     const res = await apiGet(`/api/session/${SESSION_ID}`);
-    const s = res.data;
+    const s   = res.data;
     document.getElementById('sessionSection').textContent = s.section_name;
     sessionActive = s.status === 'active';
 
@@ -71,9 +97,11 @@ async function loadSession() {
       clearInterval(pollInterval);
       clearInterval(timerInterval);
       document.getElementById('sessionTimer').textContent = '00:00';
-      document.getElementById('sessionTimer').classList.add('expired');
+      document.getElementById('sessionTimer').className = 'session-timer expired';
       document.getElementById('endSessionBtn').style.display = 'none';
       document.getElementById('sessionEnded').style.display = 'block';
+      document.getElementById('liveIndicator').style.display = 'none';
+      document.body.classList.remove('urgency-mode');
     }
   } catch(err) {
     showToast('Failed to load session: ' + err.message, 'error');
@@ -90,22 +118,28 @@ async function loadQR() {
     document.getElementById('qrTokenText').textContent = res.data.qr_token;
     document.getElementById('qrTokenDisplay').style.display = 'block';
   } catch(err) {
-    document.getElementById('qrLoading').innerHTML = `<p class="error-msg">Failed to load QR</p>`;
+    document.getElementById('qrLoading').innerHTML = `<p class="error-msg">Failed to load QR code</p>`;
   }
 }
 
 function renderAttendance(list) {
-  const el = document.getElementById('attendanceList');
+  const el      = document.getElementById('attendanceList');
   const present = list.filter(a => a.status === 'present');
-  document.getElementById('presentCount').textContent = present.length;
+  const count   = present.length;
+
+  document.getElementById('presentCount').textContent = count;
 
   if (!list.length) {
-    el.innerHTML = '<div class="empty-state-sm">No attendance records yet.</div>';
+    el.innerHTML = '<div class="empty-state-sm">Waiting for students to scan...</div>';
+    lastCount = 0;
     return;
   }
 
-  el.innerHTML = list.map(a => `
-    <div class="attendance-row ${a.status}">
+  const newItems = list.filter(a => !knownIds.has(a.id || a.student_email));
+  newItems.forEach(a => knownIds.add(a.id || a.student_email));
+
+  el.innerHTML = list.map((a, i) => `
+    <div class="attendance-row ${a.status}${newItems.includes(a) ? ' new-pulse' : ''}">
       <div class="attendance-info">
         <span class="attendance-name">${escHtml(a.student_name)}</span>
         <span class="attendance-email">${escHtml(a.student_email)}</span>
@@ -117,26 +151,40 @@ function renderAttendance(list) {
       </div>
     </div>
   `).join('');
+
+  lastCount = count;
 }
 
 function updateTimer() {
   if (!endTime) return;
-  const now = new Date();
+  const now  = new Date();
   const diff = endTime - now;
   if (diff <= 0) {
     document.getElementById('sessionTimer').textContent = '00:00';
-    document.getElementById('sessionTimer').classList.add('expired');
+    document.getElementById('sessionTimer').className = 'session-timer expired';
     clearInterval(timerInterval);
     clearInterval(pollInterval);
     document.getElementById('endSessionBtn').style.display = 'none';
     document.getElementById('sessionEnded').style.display = 'block';
+    document.getElementById('liveIndicator').style.display = 'none';
+    document.body.classList.remove('urgency-mode');
     return;
   }
   const mins = Math.floor(diff / 60000);
   const secs = Math.floor((diff % 60000) / 1000);
   document.getElementById('sessionTimer').textContent =
     String(mins).padStart(2,'0') + ':' + String(secs).padStart(2,'0');
-  if (diff < 60000) document.getElementById('sessionTimer').classList.add('urgent');
+
+  if (diff < 60000 && !urgencyActive) {
+    urgencyActive = true;
+    document.getElementById('sessionTimer').className = 'session-timer urgent';
+    document.body.classList.add('urgency-mode');
+    showToast('Less than 60 seconds remaining!', 'warning');
+  } else if (diff >= 60000) {
+    urgencyActive = false;
+    document.getElementById('sessionTimer').className = 'session-timer';
+    document.body.classList.remove('urgency-mode');
+  }
 }
 
 async function endSession() {
@@ -151,6 +199,8 @@ async function endSession() {
     document.getElementById('sessionTimer').textContent = '00:00';
     btn.style.display = 'none';
     document.getElementById('sessionEnded').style.display = 'block';
+    document.getElementById('liveIndicator').style.display = 'none';
+    document.body.classList.remove('urgency-mode');
     await loadSession();
   } catch(err) {
     showToast(err.message || 'Failed to end session', 'error');
@@ -165,6 +215,6 @@ function formatTime(iso) {
 
 loadQR();
 loadSession();
-pollInterval = setInterval(loadSession, 5000);
+pollInterval = setInterval(loadSession, 4000);
 </script>
 {% endblock %}

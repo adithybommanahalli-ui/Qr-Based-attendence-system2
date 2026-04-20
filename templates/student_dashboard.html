@@ -4,26 +4,31 @@
   <div class="page-header">
     <div>
       <h1 id="studentName">Dashboard</h1>
-      <p class="subtitle" id="studentInfo">Loading...</p>
+      <p class="subtitle" id="studentInfo">
+        <span class="skeleton skeleton-line medium" style="display:inline-block;height:16px;width:180px;vertical-align:middle"></span>
+      </p>
     </div>
-    <a href="/mark" class="btn btn-primary btn-lg">Mark Attendance</a>
+    <a href="/mark" class="btn btn-primary btn-lg">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Mark Attendance
+    </a>
   </div>
 
   <div class="stats-row" id="statsRow">
     <div class="stat-card">
-      <div class="stat-value" id="statTotal">—</div>
+      <div class="skeleton skeleton-stat"></div>
       <div class="stat-label">Total Attempts</div>
     </div>
     <div class="stat-card success">
-      <div class="stat-value" id="statPresent">—</div>
+      <div class="skeleton skeleton-stat"></div>
       <div class="stat-label">Present</div>
     </div>
     <div class="stat-card danger">
-      <div class="stat-value" id="statRejected">—</div>
+      <div class="skeleton skeleton-stat"></div>
       <div class="stat-label">Rejected</div>
     </div>
     <div class="stat-card info">
-      <div class="stat-value" id="statRate">—</div>
+      <div class="skeleton skeleton-stat"></div>
       <div class="stat-label">Attendance Rate</div>
     </div>
   </div>
@@ -33,7 +38,7 @@
       <h3>Attendance History</h3>
     </div>
     <div id="attendanceHistory">
-      <div class="loading-state"><div class="spinner-lg"></div><p>Loading...</p></div>
+      <div class="loading-state"><div class="spinner-lg"></div><p>Loading your records...</p></div>
     </div>
   </div>
 </div>
@@ -45,7 +50,7 @@ requireAuth('student');
 async function loadDashboard() {
   try {
     const me = await apiGet('/api/auth/me');
-    const u = me.data;
+    const u  = me.data;
     document.getElementById('studentName').textContent = `Welcome, ${u.name}`;
     const secInfo = u.section ? `${u.section.name} (${u.section.code})` : 'Not enrolled in any section';
     document.getElementById('studentInfo').textContent = `${u.branch || 'No branch'} · ${secInfo}`;
@@ -54,26 +59,44 @@ async function loadDashboard() {
   }
 
   try {
-    const res = await apiGet('/api/attendance/mine');
+    const res     = await apiGet('/api/attendance/mine');
     const records = res.data || [];
-    const present = records.filter(r => r.status === 'present').length;
+    const present  = records.filter(r => r.status === 'present').length;
     const rejected = records.filter(r => r.status === 'rejected').length;
-    const rate = records.length ? Math.round((present / records.length) * 100) : 0;
+    const rate     = records.length ? Math.round((present / records.length) * 100) : 0;
 
-    document.getElementById('statTotal').textContent = records.length;
-    document.getElementById('statPresent').textContent = present;
-    document.getElementById('statRejected').textContent = rejected;
-    document.getElementById('statRate').textContent = rate + '%';
+    document.getElementById('statsRow').innerHTML = `
+      <div class="stat-card">
+        <div class="stat-value">${records.length}</div>
+        <div class="stat-label">Total Attempts</div>
+      </div>
+      <div class="stat-card success">
+        <div class="stat-value">${present}</div>
+        <div class="stat-label">Present</div>
+      </div>
+      <div class="stat-card danger">
+        <div class="stat-value">${rejected}</div>
+        <div class="stat-label">Rejected</div>
+      </div>
+      <div class="stat-card info">
+        <div class="stat-value">${rate}%</div>
+        <div class="stat-label">Attendance Rate</div>
+      </div>`;
 
     if (!records.length) {
-      document.getElementById('attendanceHistory').innerHTML =
-        '<div class="empty-state"><h3>No attendance records yet</h3><p>Mark your first attendance to see history</p></div>';
+      document.getElementById('attendanceHistory').innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">📊</div>
+          <h3>No attendance records yet</h3>
+          <p>Mark your first attendance session to see your history here</p>
+          <a href="/mark" class="cta-arrow">Mark attendance now →</a>
+        </div>`;
       return;
     }
 
     document.getElementById('attendanceHistory').innerHTML = `
       <table class="data-table">
-        <thead><tr><th>Section</th><th>Date & Time</th><th>Status</th><th>Notes</th></tr></thead>
+        <thead><tr><th>Section</th><th>Date &amp; Time</th><th>Status</th><th>Notes</th></tr></thead>
         <tbody>${records.map(r => `
           <tr>
             <td>${escHtml(r.section_name || '—')}</td>
@@ -84,7 +107,7 @@ async function loadDashboard() {
         </tbody>
       </table>`;
   } catch(err) {
-    document.getElementById('attendanceHistory').innerHTML = `<p class="error-msg">Failed to load history: ${err.message}</p>`;
+    document.getElementById('attendanceHistory').innerHTML = `<p class="error-msg" style="padding:1.5rem">Failed to load history: ${escHtml(err.message)}</p>`;
   }
 }
 

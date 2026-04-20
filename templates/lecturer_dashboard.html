@@ -6,13 +6,16 @@
       <h1 id="lecturerName">Dashboard</h1>
       <p class="subtitle">Manage your sections and sessions</p>
     </div>
-    <button class="btn btn-primary" onclick="openModal('createSectionModal')">+ Create Section</button>
+    <button class="btn btn-primary" onclick="openModal('createSectionModal')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span class="btn-text">Create Section</span>
+    </button>
   </div>
 
   <div id="sectionsGrid" class="sections-grid">
     <div class="loading-state">
       <div class="spinner-lg"></div>
-      <p>Loading sections...</p>
+      <p>Loading your sections...</p>
     </div>
   </div>
 </div>
@@ -30,7 +33,7 @@
         <input type="text" id="newSectionName" class="form-control" placeholder="e.g. Introduction to CS — Group A"/>
       </div>
       <div id="newSectionCode" style="display:none;margin-top:1rem">
-        <div class="section-code-block" style="border-radius:8px;border:1.5px solid #ddd6fe">
+        <div class="section-code-block" style="border-radius:10px">
           <div class="section-code-label">Your Section Enrollment Code</div>
           <div class="section-code-row">
             <div class="section-code-big" id="sectionCodeDisplay"></div>
@@ -39,7 +42,7 @@
               Copy
             </button>
           </div>
-          <div class="section-code-hint">Share this exact code with your students so they can enroll during registration.</div>
+          <div class="section-code-hint">Share this code with your students so they can enroll during registration.</div>
         </div>
       </div>
     </div>
@@ -86,7 +89,7 @@
         </div>
       </div>
       <div id="geoStatus" class="geo-status">
-        <div class="spinner" style="display:none" id="geoSpinner"></div>
+        <span id="geoSpinner" class="spinner" style="display:none;border-color:rgba(99,102,241,.25);border-top-color:var(--primary)"></span>
         <span id="geoText">Location will be captured when you start the session.</span>
       </div>
     </div>
@@ -108,20 +111,27 @@ let cachedSections = [];
 async function loadDashboard() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   document.getElementById('lecturerName').textContent = `Welcome, ${user.name || 'Lecturer'}`;
-
   try {
     const res = await apiGet('/api/section/mine');
     cachedSections = res.data || [];
     renderSections(cachedSections);
   } catch(err) {
-    document.getElementById('sectionsGrid').innerHTML = `<div class="empty-state"><p>Failed to load sections: ${err.message}</p></div>`;
+    document.getElementById('sectionsGrid').innerHTML = `<div class="empty-state"><p class="error-msg">Failed to load sections: ${escHtml(err.message)}</p></div>`;
   }
 }
 
 function renderSections(sections) {
   const grid = document.getElementById('sectionsGrid');
   if (!sections.length) {
-    grid.innerHTML = `<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#a0aec0" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg><h3>No sections yet</h3><p>Create your first section to get started</p></div>`;
+    grid.innerHTML = `
+      <div class="empty-state" style="grid-column:1/-1;padding:4rem 2rem">
+        <div class="empty-state-icon">📋</div>
+        <h3>No sections yet</h3>
+        <p>Create your first section to start managing attendance sessions</p>
+        <div class="cta-arrow" onclick="openModal('createSectionModal')" style="cursor:pointer">
+          Create your first section →
+        </div>
+      </div>`;
     return;
   }
   grid.innerHTML = sections.map(s => `
@@ -129,11 +139,11 @@ function renderSections(sections) {
       <div class="section-card-header">
         <div class="section-info">
           <h3>${escHtml(s.name)}</h3>
-          <div class="student-count-sm">${s.student_count} student${s.student_count !== 1 ? 's' : ''}</div>
+          <div class="student-count-sm">${s.student_count} student${s.student_count !== 1 ? 's' : ''} enrolled</div>
         </div>
       </div>
       <div class="section-code-block">
-        <div class="section-code-label">Student Enrollment Code</div>
+        <div class="section-code-label">Enrollment Code</div>
         <div class="section-code-row">
           <div class="section-code-big">${escHtml(s.code)}</div>
           <button class="btn btn-sm btn-outline copy-btn" onclick="copyCode('${escHtml(s.code)}', this)" title="Copy code">
@@ -145,10 +155,12 @@ function renderSections(sections) {
       </div>
       <div class="section-card-footer">
         <button class="btn btn-sm btn-outline" onclick="viewStudents(${s.id},'${escHtml(s.name)}')">View Students</button>
-        <button class="btn btn-sm btn-primary" onclick="openStartSession(${s.id})">Start Session</button>
+        <button class="btn btn-sm btn-primary" onclick="openStartSession(${s.id})">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Start Session
+        </button>
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
 function copyCode(code, btn) {
@@ -157,15 +169,9 @@ function copyCode(code, btn) {
     btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
     btn.style.borderColor = 'var(--success)';
     btn.style.color = 'var(--success)';
-    setTimeout(() => {
-      btn.innerHTML = orig;
-      btn.style.borderColor = '';
-      btn.style.color = '';
-    }, 2000);
-    showToast(`Code "${code}" copied to clipboard!`, 'success');
-  }).catch(() => {
-    showToast(`Code: ${code}`, 'info', 8000);
-  });
+    setTimeout(() => { btn.innerHTML = orig; btn.style.borderColor = ''; btn.style.color = ''; }, 2000);
+    showToast(`Code "${code}" copied!`, 'success');
+  }).catch(() => { showToast(`Code: ${code}`, 'info', 8000); });
 }
 
 async function createSection() {
@@ -180,7 +186,6 @@ async function createSection() {
     showToast(`Section created! Code: ${res.data.code}`, 'success');
     await loadDashboard();
     document.getElementById('newSectionName').value = '';
-    document.getElementById('newSectionCode').style.display = 'block';
   } catch(err) {
     showToast(err.message || 'Failed to create section', 'error');
   } finally {
@@ -190,13 +195,13 @@ async function createSection() {
 
 async function viewStudents(sectionId, sectionName) {
   document.getElementById('studentsModalTitle').textContent = `Students — ${sectionName}`;
-  document.getElementById('studentsList').innerHTML = '<div class="loading-state"><div class="spinner-lg"></div></div>';
+  document.getElementById('studentsList').innerHTML = '<div class="loading-state"><div class="spinner-lg"></div><p>Loading students...</p></div>';
   openModal('studentsModal');
   try {
     const res = await apiGet(`/api/section/${sectionId}/students`);
     const students = res.data || [];
     if (!students.length) {
-      document.getElementById('studentsList').innerHTML = '<p class="text-muted text-center">No students enrolled yet.</p>';
+      document.getElementById('studentsList').innerHTML = '<div class="empty-state"><div class="empty-state-icon">👤</div><h3>No students enrolled</h3><p>Share the section code with students so they can enroll during registration.</p></div>';
       return;
     }
     document.getElementById('studentsList').innerHTML = `
@@ -205,7 +210,7 @@ async function viewStudents(sectionId, sectionName) {
         <tbody>${students.map(s => `<tr><td>${escHtml(s.name)}</td><td>${escHtml(s.email)}</td><td>${escHtml(s.branch||'—')}</td></tr>`).join('')}</tbody>
       </table>`;
   } catch(err) {
-    document.getElementById('studentsList').innerHTML = `<p class="error-msg">${err.message}</p>`;
+    document.getElementById('studentsList').innerHTML = `<p class="error-msg" style="padding:1rem">${escHtml(err.message)}</p>`;
   }
 }
 
@@ -218,56 +223,48 @@ function openStartSession(sectionId) {
 
 async function startSession() {
   const sectionId = document.getElementById('sessionSectionId').value;
-  const duration = parseInt(document.getElementById('sessionDuration').value) || 10;
-  const radius = parseFloat(document.getElementById('sessionRadius').value) || 100;
-  const btn = document.getElementById('startSessionBtn');
-  const geoText = document.getElementById('geoText');
+  const duration  = parseInt(document.getElementById('sessionDuration').value) || 10;
+  const radius    = parseFloat(document.getElementById('sessionRadius').value) || 100;
+  const btn       = document.getElementById('startSessionBtn');
+  const geoText   = document.getElementById('geoText');
   const geoSpinner = document.getElementById('geoSpinner');
   const geoStatus = document.getElementById('geoStatus');
 
   geoStatus.className = 'geo-status loading';
   geoSpinner.style.display = 'inline-block';
-  geoText.textContent = 'Getting your location...';
+  geoText.textContent = 'Acquiring your location...';
 
   try {
-    const pos = await new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, enableHighAccuracy: true });
-    });
-    geoText.textContent = `Location acquired (${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)})`;
+    const pos = await new Promise((resolve, reject) =>
+      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, enableHighAccuracy: true })
+    );
+    geoText.textContent = `Location confirmed (${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)})`;
     geoStatus.className = 'geo-status success';
     geoSpinner.style.display = 'none';
-
     setLoading(btn, true);
     const res = await apiPost('/api/session/start', {
-      section_id: parseInt(sectionId),
-      duration_minutes: duration,
-      latitude: pos.coords.latitude,
-      longitude: pos.coords.longitude,
-      radius_meters: radius
+      section_id: parseInt(sectionId), duration_minutes: duration,
+      latitude: pos.coords.latitude, longitude: pos.coords.longitude, radius_meters: radius
     });
     closeModal('startSessionModal');
     showToast('Session started!', 'success');
     window.location.href = `/session/${res.data.session_id}`;
   } catch(err) {
     if (err.code === 1) {
-      geoText.textContent = 'Location denied. Starting without geo-restriction...';
+      geoText.textContent = 'Location denied — starting without geo-restriction.';
       geoStatus.className = 'geo-status warning';
       geoSpinner.style.display = 'none';
       setLoading(btn, true);
       try {
         const res = await apiPost('/api/session/start', {
-          section_id: parseInt(sectionId),
-          duration_minutes: duration,
-          latitude: null,
-          longitude: null,
-          radius_meters: radius
+          section_id: parseInt(sectionId), duration_minutes: duration,
+          latitude: null, longitude: null, radius_meters: radius
         });
         closeModal('startSessionModal');
         showToast('Session started (no geo-restriction)!', 'success');
         window.location.href = `/session/${res.data.session_id}`;
       } catch(e) {
         showToast(e.message || 'Failed to start session', 'error');
-      } finally {
         setLoading(btn, false);
       }
     } else {

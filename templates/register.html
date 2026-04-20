@@ -4,7 +4,7 @@
   <div class="auth-card wide">
     <div class="auth-header">
       <h2>Create Account</h2>
-      <p>Join Smart Attendance</p>
+      <p>Join Smart Attendance System</p>
     </div>
 
     <div class="role-toggle">
@@ -38,10 +38,13 @@
             <input type="text" id="branch" class="form-control" placeholder="e.g. Computer Science"/>
           </div>
           <div class="form-group">
-            <label>Section Code <span style="color:var(--gray-400);font-weight:400">(6-character code from your lecturer)</span></label>
+            <label>Section Code <span style="color:var(--text-faint);font-weight:500;text-transform:none;letter-spacing:0">(6-char code from your lecturer)</span></label>
             <div style="display:flex;gap:.5rem">
-              <input type="text" id="sectionCode" class="form-control" placeholder="e.g. DEMO01" maxlength="6" style="text-transform:uppercase;letter-spacing:.12em;font-weight:700;font-size:1.1rem" oninput="clearSectionVerify()"/>
-              <button type="button" class="btn btn-outline" id="verifyCodeBtn" onclick="verifySectionCode()" style="white-space:nowrap;flex-shrink:0">Verify Code</button>
+              <input type="text" id="sectionCode" class="form-control" placeholder="DEMO01" maxlength="6" style="text-transform:uppercase;letter-spacing:.14em;font-weight:800;font-size:1.05rem;font-family:monospace" oninput="clearSectionVerify()"/>
+              <button type="button" class="btn btn-outline" id="verifyCodeBtn" onclick="verifySectionCode()" style="white-space:nowrap;flex-shrink:0">
+                <span class="btn-text">Verify</span>
+                <span class="spinner" style="display:none;border-color:rgba(99,102,241,.25);border-top-color:var(--primary)"></span>
+              </button>
             </div>
             <div id="sectionVerifyResult" style="display:none;margin-top:.5rem"></div>
           </div>
@@ -50,7 +53,7 @@
         <div class="face-section">
           <div class="face-header">
             <h4>Face Registration <span class="required-badge">Required</span></h4>
-            <p>We need your face to verify identity during attendance</p>
+            <p>Your face is used to verify identity during attendance marking</p>
           </div>
           <div class="video-wrapper">
             <video id="faceVideo" autoplay muted playsinline></video>
@@ -59,9 +62,9 @@
               <div class="face-ring"></div>
             </div>
           </div>
-          <div id="faceStatus" class="face-status idle">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
-            <span id="faceStatusText">Camera not started</span>
+          <div id="faceStatus" class="face-status">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+            <span id="faceStatusText">Click "Start Camera" to begin face registration</span>
           </div>
           <div class="face-actions">
             <button type="button" class="btn btn-outline" id="startCameraBtn" onclick="startCamera()">Start Camera</button>
@@ -69,30 +72,50 @@
           </div>
           <input type="hidden" id="faceEmbedding"/>
           <div id="faceSuccess" class="face-captured" style="display:none">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
             Face captured successfully!
           </div>
         </div>
       </div>
 
-      <button type="submit" class="btn btn-primary btn-full" id="registerBtn">
+      <button type="submit" class="btn btn-primary btn-full" id="registerBtn" style="margin-top:.5rem">
         <span class="btn-text">Create Account</span>
         <span class="spinner" style="display:none"></span>
       </button>
     </form>
     <div class="auth-footer">
-      Already have an account? <a href="/login">Login here</a>
+      Already have an account? <a href="/login">Sign in here</a>
     </div>
   </div>
 </div>
 {% endblock %}
 {% block scripts %}
-<script src="/static/js/face-capture.js"></script>
 <script>
-let currentRole = 'student';
-let faceEmbedding = null;
-let cameraStream = null;
-let modelsLoaded = false;
+let currentRole    = 'student';
+let faceEmbedding  = null;
+let cameraStream   = null;
+let modelsLoaded   = false;
+
+const FACE_API_MODELS_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights/';
+
+async function ensureFaceApi() {
+  if (typeof faceapi === 'undefined') {
+    await loadScript('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js');
+  }
+  if (!faceapi.nets.tinyFaceDetector.isLoaded || !faceapi.nets.faceLandmark68Net.isLoaded || !faceapi.nets.faceRecognitionNet.isLoaded) {
+    await Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(FACE_API_MODELS_URL),
+      faceapi.nets.faceLandmark68Net.loadFromUri(FACE_API_MODELS_URL),
+      faceapi.nets.faceRecognitionNet.loadFromUri(FACE_API_MODELS_URL)
+    ]);
+  }
+}
+
+async function detectFaceDescriptor(videoElement) {
+  const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 });
+  const result  = await faceapi.detectSingleFace(videoElement, options).withFaceLandmarks().withFaceDescriptor();
+  return result ? result.descriptor : null;
+}
 
 function setRole(role) {
   currentRole = role;
@@ -104,28 +127,25 @@ function setRole(role) {
 
 function clearSectionVerify() {
   const el = document.getElementById('sectionVerifyResult');
-  el.style.display = 'none';
-  el.innerHTML = '';
+  el.style.display = 'none'; el.innerHTML = '';
 }
 
 async function verifySectionCode() {
-  const code = document.getElementById('sectionCode').value.trim().toUpperCase();
+  const code     = document.getElementById('sectionCode').value.trim().toUpperCase();
   const resultEl = document.getElementById('sectionVerifyResult');
-  const btn = document.getElementById('verifyCodeBtn');
+  const btn      = document.getElementById('verifyCodeBtn');
   if (!code) {
     resultEl.innerHTML = '<div class="verify-error">Please enter a section code first.</div>';
-    resultEl.style.display = 'block';
-    return;
+    resultEl.style.display = 'block'; return;
   }
-  btn.disabled = true;
-  btn.textContent = 'Checking...';
+  setLoading(btn, true);
   try {
-    const res = await fetch(`/api/section/lookup/${encodeURIComponent(code)}`);
+    const res  = await fetch(`/api/section/lookup/${encodeURIComponent(code)}`);
     const data = await res.json();
     if (data.success) {
       resultEl.innerHTML = `<div class="verify-success">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-        Found: <strong>${escHtml(data.data.name)}</strong> &mdash; Lecturer: ${escHtml(data.data.lecturer_name)} (${data.data.student_count} students enrolled)
+        Found: <strong>${escHtml(data.data.name)}</strong> — Lecturer: ${escHtml(data.data.lecturer_name)} (${data.data.student_count} students)
       </div>`;
     } else {
       resultEl.innerHTML = `<div class="verify-error">
@@ -137,29 +157,28 @@ async function verifySectionCode() {
     resultEl.innerHTML = `<div class="verify-error">Could not verify: ${escHtml(err.message)}</div>`;
   } finally {
     resultEl.style.display = 'block';
-    btn.disabled = false;
-    btn.textContent = 'Verify Code';
+    setLoading(btn, false);
+    btn.querySelector('.btn-text').textContent = 'Verify';
   }
 }
 
 async function startCamera() {
-  const btn = document.getElementById('startCameraBtn');
-  const statusEl = document.getElementById('faceStatus');
+  const btn        = document.getElementById('startCameraBtn');
+  const statusEl   = document.getElementById('faceStatus');
   const statusText = document.getElementById('faceStatusText');
   statusText.textContent = 'Loading AI models...';
   statusEl.className = 'face-status loading';
   btn.disabled = true;
 
   try {
-    await loadFaceApiModels();
+    await ensureFaceApi();
     modelsLoaded = true;
     statusText.textContent = 'Starting camera...';
     cameraStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } });
     const video = document.getElementById('faceVideo');
-    video.srcObject = cameraStream;
-    await video.play();
+    video.srcObject = cameraStream; await video.play();
     document.getElementById('captureFaceBtn').disabled = false;
-    statusText.textContent = 'Position your face in the circle and click Capture';
+    statusText.textContent = 'Position your face in the ring and click Capture';
     statusEl.className = 'face-status ready';
     btn.textContent = 'Restart Camera';
     btn.disabled = false;
@@ -171,29 +190,27 @@ async function startCamera() {
 }
 
 async function captureFace() {
-  const btn = document.getElementById('captureFaceBtn');
+  const btn        = document.getElementById('captureFaceBtn');
   const statusText = document.getElementById('faceStatusText');
-  const statusEl = document.getElementById('faceStatus');
+  const statusEl   = document.getElementById('faceStatus');
   btn.disabled = true;
   statusText.textContent = 'Detecting face...';
   statusEl.className = 'face-status loading';
 
   try {
-    const video = document.getElementById('faceVideo');
+    const video      = document.getElementById('faceVideo');
     const descriptor = await detectFaceDescriptor(video);
     if (!descriptor) {
-      statusText.textContent = 'No face detected. Ensure good lighting and face is visible.';
+      statusText.textContent = 'No face detected. Ensure good lighting and face is clearly visible.';
       statusEl.className = 'face-status error';
-      btn.disabled = false;
-      return;
+      btn.disabled = false; return;
     }
     faceEmbedding = Array.from(descriptor);
     document.getElementById('faceEmbedding').value = JSON.stringify(faceEmbedding);
     document.getElementById('faceSuccess').style.display = 'flex';
     statusText.textContent = 'Face captured! You can re-capture if needed.';
     statusEl.className = 'face-status success';
-    btn.textContent = 'Re-capture';
-    btn.disabled = false;
+    btn.textContent = 'Re-capture'; btn.disabled = false;
     showToast('Face captured successfully!', 'success');
   } catch(err) {
     statusText.textContent = 'Error: ' + (err.message || 'Face detection failed');
@@ -205,38 +222,30 @@ async function captureFace() {
 document.getElementById('registerForm').addEventListener('submit', async function(e) {
   e.preventDefault();
   const btn = document.getElementById('registerBtn');
-
   if (currentRole === 'student' && !faceEmbedding) {
-    showToast('Please capture your face before registering', 'error');
-    return;
+    showToast('Please capture your face before registering', 'error'); return;
   }
-
   setLoading(btn, true);
   const payload = {
-    name: document.getElementById('name').value.trim(),
-    email: document.getElementById('email').value.trim(),
+    name:     document.getElementById('name').value.trim(),
+    email:    document.getElementById('email').value.trim(),
     password: document.getElementById('password').value,
-    role: currentRole
+    role:     currentRole
   };
-
   if (currentRole === 'student') {
-    payload.branch = document.getElementById('branch').value.trim();
+    payload.branch       = document.getElementById('branch').value.trim();
     payload.section_code = document.getElementById('sectionCode').value.trim().toUpperCase();
     payload.face_embedding = faceEmbedding;
   }
-
   try {
     const res = await apiPost('/api/auth/register', payload);
     localStorage.setItem('token', res.data.token);
     localStorage.setItem('user', JSON.stringify(res.data.user));
     showToast('Account created! Redirecting...', 'success');
     if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
-    setTimeout(() => {
-      window.location.href = res.data.user.role === 'lecturer' ? '/lecturer' : '/student';
-    }, 800);
+    setTimeout(() => { window.location.href = res.data.user.role === 'lecturer' ? '/lecturer' : '/student'; }, 800);
   } catch(err) {
     showToast(err.message || 'Registration failed', 'error');
-  } finally {
     setLoading(btn, false);
   }
 });

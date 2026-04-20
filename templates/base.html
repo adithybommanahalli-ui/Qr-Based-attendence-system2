@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Smart Attendance System</title>
 <link rel="stylesheet" href="/static/css/style.css"/>
-<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body>
+<div id="cursorSpotlight"></div>
+<canvas id="particlesCanvas"></canvas>
 <nav class="navbar">
   <div class="nav-brand">
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
       <circle cx="9" cy="7" r="4"/>
       <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
