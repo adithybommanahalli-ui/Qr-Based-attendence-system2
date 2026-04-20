@@ -139,6 +139,8 @@ function initQRScanner() {
     { fps: 10, qrbox: { width: 250, height: 250 } },
     (decodedText) => {
       qrToken = decodedText.trim();
+      console.log('[QR] Raw scanned text:', JSON.stringify(decodedText));
+      console.log('[QR] Stored qrToken:', JSON.stringify(qrToken));
       html5QrCode.stop().catch(()=>{});
       document.getElementById('qrResult').style.display = 'flex';
       document.getElementById('qrError').style.display = 'none';
@@ -270,6 +272,9 @@ async function captureMarkFace() {
 async function submitAttendance() {
   showStep(4);
   try {
+    console.log('[SUBMIT] qrToken:', JSON.stringify(qrToken));
+    console.log('[SUBMIT] latitude:', userLatitude, 'longitude:', userLongitude);
+    console.log('[SUBMIT] faceEmbedding length:', faceEmbedding ? faceEmbedding.length : 'null');
     const res = await apiPost('/api/attendance/mark', {
       qr_token: qrToken,
       face_embedding: faceEmbedding,

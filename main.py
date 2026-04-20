@@ -82,10 +82,7 @@ def haversine(lat1, lon1, lat2, lon2):
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 def generate_qr_base64(token):
-    qr = qrcode.QRCode(version=1, box_size=10, border=4)
-    qr.add_data(token)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
+    img = qrcode.make(token)
     buf = io.BytesIO()
     img.save(buf, format='PNG')
     buf.seek(0)
@@ -492,9 +489,12 @@ def api_attendance_mark():
             return error_response('latitude and longitude required')
 
         # 1. Session check
-        session = Session.query.filter_by(qr_token=qr_token).first()
+        print(f"[DEBUG] Received qr_token: '{qr_token}'", flush=True)
+        all_tokens = [s.qr_token for s in Session.query.all()]
+        print(f"[DEBUG] All tokens in DB: {all_tokens}", flush=True)
+        session = Session.query.filter_by(qr_token=qr_token.strip()).first()
         if not session:
-            return error_response('Invalid QR code', 404)
+            return error_response('Invalid QR code — token not found in database', 404)
         auto_end_session(session)
         if session.status != 'active':
             return error_response('Session has ended')
