@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="auth-page">
+  <div class="auth-card wide">
+    <div class="auth-header">
+      <h2>Create Account</h2>
+      <p>Join Smart Attendance</p>
+    </div>
+
+    <div class="role-toggle">
+      <button type="button" class="role-btn active" id="roleStudent" onclick="setRole('student')">Student</button>
+      <button type="button" class="role-btn" id="roleLecturer" onclick="setRole('lecturer')">Lecturer</button>
+    </div>
+
+    <form id="registerForm" class="auth-form">
+      <input type="hidden" id="roleInput" value="student"/>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" id="name" class="form-control" placeholder="Your full name" required/>
+        </div>
+        <div class="form-group">
+          <label>Email Address</label>
+          <input type="email" id="email" class="form-control" placeholder="you@example.com" required/>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="password" class="form-control" placeholder="Minimum 6 characters" autocomplete="new-password" required/>
+      </div>
+
+      <div id="studentFields">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Branch / Department</label>
+            <input type="text" id="branch" class="form-control" placeholder="e.g. Computer Science"/>
+          </div>
+          <div class="form-group">
+            <label>Section Code</label>
+            <input type="text" id="sectionCode" class="form-control" placeholder="e.g. DEMO01" maxlength="6" style="text-transform:uppercase"/>
+          </div>
+        </div>
+
+        <div class="face-section">
+          <div class="face-header">
+            <h4>Face Registration <span class="required-badge">Required</span></h4>
+            <p>We need your face to verify identity during attendance</p>
+          </div>
+          <div class="video-wrapper">
+            <video id="faceVideo" autoplay muted playsinline></video>
+            <canvas id="faceCanvas" style="display:none"></canvas>
+            <div id="faceOverlay" class="face-overlay">
+              <div class="face-ring"></div>
+            </div>
+          </div>
+          <div id="faceStatus" class="face-status idle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+            <span id="faceStatusText">Camera not started</span>
+          </div>
+          <div class="face-actions">
+            <button type="button" class="btn btn-outline" id="startCameraBtn" onclick="startCamera()">Start Camera</button>
+            <button type="button" class="btn btn-primary" id="captureFaceBtn" onclick="captureFace()" disabled>Capture Face</button>
+          </div>
+          <input type="hidden" id="faceEmbedding"/>
+          <div id="faceSuccess" class="face-captured" style="display:none">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            Face captured successfully!
+          </div>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-full" id="registerBtn">
+        <span class="btn-text">Create Account</span>
+        <span class="spinner" style="display:none"></span>
+      </button>
+    </form>
+    <div class="auth-footer">
+      Already have an account? <a href="/login">Login here</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/face-capture.js"></script>
+<script>
+let currentRole = 'student';
+let faceEmbedding = null;
+let cameraStream = null;
+let modelsLoaded = false;
+
+function setRole(role) {
+  currentRole = role;
+  document.getElementById('roleInput').value = role;
+  document.getElementById('studentFields').style.display = role === 'student' ? 'block' : 'none';
+  document.getElementById('roleStudent').classList.toggle('active', role === 'student');
+  document.getElementById('roleLecturer').classList.toggle('active', role === 'lecturer');
+}
+
+async function startCamera() {
+  const btn = document.getElementById('startCameraBtn');
+  const statusEl = document.getElementById('faceStatus');
+  const statusText = document.getElementById('faceStatusText');
+  statusText.textContent = 'Loading AI models...';
+  statusEl.className = 'face-status loading';
+  btn.disabled = true;
+
+  try {
+    await loadFaceApiModels();
+    modelsLoaded = true;
+    statusText.textContent = 'Starting camera...';
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } });
+    const video = document.getElementById('faceVideo');
+    video.srcObject = cameraStream;
+    await video.play();
+    document.getElementById('captureFaceBtn').disabled = false;
+    statusText.textContent = 'Position your face in the circle and click Capture';
+    statusEl.className = 'face-status ready';
+    btn.textContent = 'Restart Camera';
+    btn.disabled = false;
+  } catch(err) {
+    statusText.textContent = 'Error: ' + (err.message || 'Could not access camera');
+    statusEl.className = 'face-status error';
+    btn.disabled = false;
+  }
+}
+
+async function captureFace() {
+  const btn = document.getElementById('captureFaceBtn');
+  const statusText = document.getElementById('faceStatusText');
+  const statusEl = document.getElementById('faceStatus');
+  btn.disabled = true;
+  statusText.textContent = 'Detecting face...';
+  statusEl.className = 'face-status loading';
+
+  try {
+    const video = document.getElementById('faceVideo');
+    const descriptor = await detectFaceDescriptor(video);
+    if (!descriptor) {
+      statusText.textContent = 'No face detected. Ensure good lighting and face is visible.';
+      statusEl.className = 'face-status error';
+      btn.disabled = false;
+      return;
+    }
+    faceEmbedding = Array.from(descriptor);
+    document.getElementById('faceEmbedding').value = JSON.stringify(faceEmbedding);
+    document.getElementById('faceSuccess').style.display = 'flex';
+    statusText.textContent = 'Face captured! You can re-capture if needed.';
+    statusEl.className = 'face-status success';
+    btn.textContent = 'Re-capture';
+    btn.disabled = false;
+    showToast('Face captured successfully!', 'success');
+  } catch(err) {
+    statusText.textContent = 'Error: ' + (err.message || 'Face detection failed');
+    statusEl.className = 'face-status error';
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('registerForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const btn = document.getElementById('registerBtn');
+
+  if (currentRole === 'student' && !faceEmbedding) {
+    showToast('Please capture your face before registering', 'error');
+    return;
+  }
+
+  setLoading(btn, true);
+  const payload = {
+    name: document.getElementById('name').value.trim(),
+    email: document.getElementById('email').value.trim(),
+    password: document.getElementById('password').value,
+    role: currentRole
+  };
+
+  if (currentRole === 'student') {
+    payload.branch = document.getElementById('branch').value.trim();
+    payload.section_code = document.getElementById('sectionCode').value.trim().toUpperCase();
+    payload.face_embedding = faceEmbedding;
+  }
+
+  try {
+    const res = await apiPost('/api/auth/register', payload);
+    localStorage.setItem('token', res.data.token);
+    localStorage.setItem('user', JSON.stringify(res.data.user));
+    showToast('Account created! Redirecting...', 'success');
+    if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
+    setTimeout(() => {
+      window.location.href = res.data.user.role === 'lecturer' ? '/lecturer' : '/student';
+    }, 800);
+  } catch(err) {
+    showToast(err.message || 'Registration failed', 'error');
+  } finally {
+    setLoading(btn, false);
+  }
+});
+</script>
+{% endblock %}

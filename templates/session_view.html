@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="session-page">
+  <div class="page-header">
+    <div>
+      <h1 id="sessionTitle">Active Session</h1>
+      <p class="subtitle" id="sessionSection">Loading...</p>
+    </div>
+    <div class="session-timer-wrap">
+      <div class="timer-label">Time Remaining</div>
+      <div class="session-timer" id="sessionTimer">--:--</div>
+    </div>
+  </div>
+
+  <div class="session-layout">
+    <div class="qr-card">
+      <h3>Session QR Code</h3>
+      <p class="qr-hint">Students scan this to mark attendance</p>
+      <div class="qr-container">
+        <div id="qrLoading" class="qr-loading"><div class="spinner-lg"></div></div>
+        <img id="qrImage" style="display:none" alt="QR Code"/>
+      </div>
+      <div class="qr-token-display" id="qrTokenDisplay" style="display:none">
+        Token: <code id="qrTokenText"></code>
+      </div>
+      <div class="session-actions">
+        <button class="btn btn-danger" onclick="endSession()" id="endSessionBtn">End Session</button>
+      </div>
+      <div id="sessionEnded" class="session-ended-badge" style="display:none">Session Ended</div>
+    </div>
+
+    <div class="attendance-card">
+      <div class="attendance-header">
+        <h3>Live Attendance</h3>
+        <div class="attendance-count">
+          <span id="presentCount">0</span> present
+        </div>
+      </div>
+      <div id="attendanceList" class="attendance-list">
+        <div class="empty-state-sm">No attendance records yet.</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+requireAuth('lecturer');
+const SESSION_ID = {{ session_id }};
+let pollInterval = null;
+let endTime = null;
+let timerInterval = null;
+let sessionActive = true;
+
+async function loadSession() {
+  try {
+    const res = await apiGet(`/api/session/${SESSION_ID}`);
+    const s = res.data;
+    document.getElementById('sessionSection').textContent = s.section_name;
+    sessionActive = s.status === 'active';
+
+    endTime = new Date(s.end_time);
+    if (!timerInterval) {
+      timerInterval = setInterval(updateTimer, 1000);
+      updateTimer();
+    }
+
+    renderAttendance(s.attendance || []);
+
+    if (!sessionActive) {
+      clearInterval(pollInterval);
+      clearInterval(timerInterval);
+      document.getElementById('sessionTimer').textContent = '00:00';
+      document.getElementById('sessionTimer').classList.add('expired');
+      document.getElementById('endSessionBtn').style.display = 'none';
+      document.getElementById('sessionEnded').style.display = 'block';
+    }
+  } catch(err) {
+    showToast('Failed to load session: ' + err.message, 'error');
+  }
+}
+
+async function loadQR() {
+  try {
+    const res = await apiGet(`/api/session/qr/${SESSION_ID}`);
+    const img = document.getElementById('qrImage');
+    img.src = res.data.qr_image;
+    img.style.display = 'block';
+    document.getElementById('qrLoading').style.display = 'none';
+    document.getElementById('qrTokenText').textContent = res.data.qr_token;
+    document.getElementById('qrTokenDisplay').style.display = 'block';
+  } catch(err) {
+    document.getElementById('qrLoading').innerHTML = `<p class="error-msg">Failed to load QR</p>`;
+  }
+}
+
+function renderAttendance(list) {
+  const el = document.getElementById('attendanceList');
+  const present = list.filter(a => a.status === 'present');
+  document.getElementById('presentCount').textContent = present.length;
+
+  if (!list.length) {
+    el.innerHTML = '<div class="empty-state-sm">No attendance records yet.</div>';
+    return;
+  }
+
+  el.innerHTML = list.map(a => `
+    <div class="attendance-row ${a.status}">
+      <div class="attendance-info">
+        <span class="attendance-name">${escHtml(a.student_name)}</span>
+        <span class="attendance-email">${escHtml(a.student_email)}</span>
+      </div>
+      <div class="attendance-right">
+        <span class="status-badge ${a.status}">${a.status}</span>
+        <span class="attendance-time">${formatTime(a.timestamp)}</span>
+        ${a.reason ? `<span class="attendance-reason" title="${escHtml(a.reason)}">ⓘ</span>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function updateTimer() {
+  if (!endTime) return;
+  const now = new Date();
+  const diff = endTime - now;
+  if (diff <= 0) {
+    document.getElementById('sessionTimer').textContent = '00:00';
+    document.getElementById('sessionTimer').classList.add('expired');
+    clearInterval(timerInterval);
+    clearInterval(pollInterval);
+    document.getElementById('endSessionBtn').style.display = 'none';
+    document.getElementById('sessionEnded').style.display = 'block';
+    return;
+  }
+  const mins = Math.floor(diff / 60000);
+  const secs = Math.floor((diff % 60000) / 1000);
+  document.getElementById('sessionTimer').textContent =
+    String(mins).padStart(2,'0') + ':' + String(secs).padStart(2,'0');
+  if (diff < 60000) document.getElementById('sessionTimer').classList.add('urgent');
+}
+
+async function endSession() {
+  if (!confirm('Are you sure you want to end this session?')) return;
+  const btn = document.getElementById('endSessionBtn');
+  setLoading(btn, true);
+  try {
+    await apiPost('/api/session/end', { session_id: SESSION_ID });
+    showToast('Session ended', 'success');
+    clearInterval(pollInterval);
+    clearInterval(timerInterval);
+    document.getElementById('sessionTimer').textContent = '00:00';
+    btn.style.display = 'none';
+    document.getElementById('sessionEnded').style.display = 'block';
+    await loadSession();
+  } catch(err) {
+    showToast(err.message || 'Failed to end session', 'error');
+    setLoading(btn, false);
+  }
+}
+
+function formatTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+loadQR();
+loadSession();
+pollInterval = setInterval(loadSession, 5000);
+</script>
+{% endblock %}

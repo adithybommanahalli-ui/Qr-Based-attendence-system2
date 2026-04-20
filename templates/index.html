@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="hero">
+  <div class="hero-content">
+    <div class="hero-badge">AI-Powered Attendance</div>
+    <h1>Smart Attendance System</h1>
+    <p>Secure student attendance using QR Code, Face Recognition, and Geolocation — all in one click.</p>
+    <div class="hero-actions">
+      <a href="/login" class="btn btn-primary btn-lg">Login</a>
+      <a href="/register" class="btn btn-outline btn-lg">Register</a>
+    </div>
+    <div class="hero-features">
+      <div class="feature-pill">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        QR Code
+      </div>
+      <div class="feature-pill">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg>
+        Face Recognition
+      </div>
+      <div class="feature-pill">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
+        Geolocation
+      </div>
+    </div>
+  </div>
+  <div class="hero-demo">
+    <div class="demo-card">
+      <div class="demo-label">Demo Credentials</div>
+      <div class="demo-row"><span>Email:</span><code>lecturer@demo.com</code></div>
+      <div class="demo-row"><span>Password:</span><code>demo123</code></div>
+      <div class="demo-row"><span>Section:</span><code>DEMO01</code></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

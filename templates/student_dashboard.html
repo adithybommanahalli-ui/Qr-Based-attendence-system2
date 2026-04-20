@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="dashboard">
+  <div class="page-header">
+    <div>
+      <h1 id="studentName">Dashboard</h1>
+      <p class="subtitle" id="studentInfo">Loading...</p>
+    </div>
+    <a href="/mark" class="btn btn-primary btn-lg">Mark Attendance</a>
+  </div>
+
+  <div class="stats-row" id="statsRow">
+    <div class="stat-card">
+      <div class="stat-value" id="statTotal">—</div>
+      <div class="stat-label">Total Attempts</div>
+    </div>
+    <div class="stat-card success">
+      <div class="stat-value" id="statPresent">—</div>
+      <div class="stat-label">Present</div>
+    </div>
+    <div class="stat-card danger">
+      <div class="stat-value" id="statRejected">—</div>
+      <div class="stat-label">Rejected</div>
+    </div>
+    <div class="stat-card info">
+      <div class="stat-value" id="statRate">—</div>
+      <div class="stat-label">Attendance Rate</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>Attendance History</h3>
+    </div>
+    <div id="attendanceHistory">
+      <div class="loading-state"><div class="spinner-lg"></div><p>Loading...</p></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+requireAuth('student');
+
+async function loadDashboard() {
+  try {
+    const me = await apiGet('/api/auth/me');
+    const u = me.data;
+    document.getElementById('studentName').textContent = `Welcome, ${u.name}`;
+    const secInfo = u.section ? `${u.section.name} (${u.section.code})` : 'Not enrolled in any section';
+    document.getElementById('studentInfo').textContent = `${u.branch || 'No branch'} · ${secInfo}`;
+  } catch(err) {
+    showToast('Failed to load profile: ' + err.message, 'error');
+  }
+
+  try {
+    const res = await apiGet('/api/attendance/mine');
+    const records = res.data || [];
+    const present = records.filter(r => r.status === 'present').length;
+    const rejected = records.filter(r => r.status === 'rejected').length;
+    const rate = records.length ? Math.round((present / records.length) * 100) : 0;
+
+    document.getElementById('statTotal').textContent = records.length;
+    document.getElementById('statPresent').textContent = present;
+    document.getElementById('statRejected').textContent = rejected;
+    document.getElementById('statRate').textContent = rate + '%';
+
+    if (!records.length) {
+      document.getElementById('attendanceHistory').innerHTML =
+        '<div class="empty-state"><h3>No attendance records yet</h3><p>Mark your first attendance to see history</p></div>';
+      return;
+    }
+
+    document.getElementById('attendanceHistory').innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Section</th><th>Date & Time</th><th>Status</th><th>Notes</th></tr></thead>
+        <tbody>${records.map(r => `
+          <tr>
+            <td>${escHtml(r.section_name || '—')}</td>
+            <td>${new Date(r.timestamp).toLocaleString()}</td>
+            <td><span class="status-badge ${r.status}">${r.status}</span></td>
+            <td class="text-muted">${r.reason ? escHtml(r.reason) : '—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+  } catch(err) {
+    document.getElementById('attendanceHistory').innerHTML = `<p class="error-msg">Failed to load history: ${err.message}</p>`;
+  }
+}
+
+loadDashboard();
+</script>
+{% endblock %}

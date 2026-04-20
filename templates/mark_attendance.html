@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mark-page">
+  <div class="page-header">
+    <a href="/student" class="btn btn-outline btn-sm">← Back</a>
+    <h1>Mark Attendance</h1>
+  </div>
+
+  <div class="steps-indicator">
+    <div class="step" id="step1Indicator" data-step="1">
+      <div class="step-circle active">1</div>
+      <div class="step-label">Scan QR</div>
+    </div>
+    <div class="step-line"></div>
+    <div class="step" id="step2Indicator" data-step="2">
+      <div class="step-circle">2</div>
+      <div class="step-label">Location</div>
+    </div>
+    <div class="step-line"></div>
+    <div class="step" id="step3Indicator" data-step="3">
+      <div class="step-circle">3</div>
+      <div class="step-label">Face Scan</div>
+    </div>
+    <div class="step-line"></div>
+    <div class="step" id="step4Indicator" data-step="4">
+      <div class="step-circle">4</div>
+      <div class="step-label">Submit</div>
+    </div>
+  </div>
+
+  <!-- Step 1: QR Scan -->
+  <div id="stepQR" class="step-panel">
+    <div class="step-card">
+      <h3>Step 1: Scan QR Code</h3>
+      <p>Point your camera at the QR code displayed by your lecturer</p>
+      <div id="qrReader"></div>
+      <div id="qrResult" style="display:none" class="qr-result">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        QR scanned successfully
+      </div>
+      <div id="qrError" class="error-msg" style="display:none"></div>
+      <button class="btn btn-outline btn-sm" id="retryQrBtn" onclick="retryQR()" style="display:none;margin-top:1rem">Retry Scan</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Location -->
+  <div id="stepGeo" class="step-panel" style="display:none">
+    <div class="step-card">
+      <h3>Step 2: Verify Location</h3>
+      <p>We need your location to confirm you are in class</p>
+      <div id="geoStatus2" class="geo-status loading">
+        <div class="spinner" id="geoSpinner2"></div>
+        <span id="geoText2">Getting your location...</span>
+      </div>
+      <button class="btn btn-primary" id="retryGeoBtn" onclick="getLocation()" style="display:none;margin-top:1rem">Retry Location</button>
+    </div>
+  </div>
+
+  <!-- Step 3: Face Capture -->
+  <div id="stepFace" class="step-panel" style="display:none">
+    <div class="step-card">
+      <h3>Step 3: Face Verification</h3>
+      <p>Capture your face to verify your identity</p>
+      <div class="video-wrapper">
+        <video id="markVideo" autoplay muted playsinline></video>
+        <canvas id="markCanvas" style="display:none"></canvas>
+        <div class="face-overlay"><div class="face-ring"></div></div>
+      </div>
+      <div id="faceStatus2" class="face-status idle">
+        <span id="faceStatusText2">Camera not started</span>
+      </div>
+      <div class="face-actions">
+        <button type="button" class="btn btn-outline" id="startMarkCameraBtn" onclick="startMarkCamera()">Start Camera</button>
+        <button type="button" class="btn btn-primary" id="captureMarkFaceBtn" onclick="captureMarkFace()" disabled>Capture & Verify</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 4: Result -->
+  <div id="stepResult" class="step-panel" style="display:none">
+    <div class="step-card result-card">
+      <div id="resultSuccess" style="display:none" class="result-success">
+        <div class="result-icon success-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <h2>Attendance Marked!</h2>
+        <p>Your attendance has been recorded successfully.</p>
+        <a href="/student" class="btn btn-primary btn-lg" style="margin-top:1.5rem">Back to Dashboard</a>
+      </div>
+      <div id="resultError" style="display:none" class="result-error">
+        <div class="result-icon error-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </div>
+        <h2>Attendance Failed</h2>
+        <p id="resultErrorMsg">Something went wrong.</p>
+        <button class="btn btn-outline btn-lg" onclick="restartFlow()" style="margin-top:1.5rem">Try Again</button>
+        <a href="/student" class="btn btn-primary btn-lg" style="margin-top:0.5rem">Back to Dashboard</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/face-capture.js"></script>
+<script src="/static/js/qr-scanner.js"></script>
+<script>
+requireAuth('student');
+let qrToken = null;
+let userLatitude = null;
+let userLongitude = null;
+let faceEmbedding = null;
+let markCameraStream = null;
+let markModelsLoaded = false;
+let html5QrCode = null;
+
+function setActiveStep(step) {
+  document.querySelectorAll('.step-circle').forEach((c, i) => {
+    c.classList.remove('active', 'done');
+    if (i + 1 < step) c.classList.add('done');
+    if (i + 1 === step) c.classList.add('active');
+  });
+}
+
+function showStep(step) {
+  document.getElementById('stepQR').style.display = step === 1 ? 'block' : 'none';
+  document.getElementById('stepGeo').style.display = step === 2 ? 'block' : 'none';
+  document.getElementById('stepFace').style.display = step === 3 ? 'block' : 'none';
+  document.getElementById('stepResult').style.display = step === 4 ? 'block' : 'none';
+  setActiveStep(step);
+}
+
+function initQRScanner() {
+  if (html5QrCode) {
+    try { html5QrCode.stop(); } catch(e) {}
+  }
+  html5QrCode = new Html5Qrcode('qrReader');
+  html5QrCode.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 250, height: 250 } },
+    (decodedText) => {
+      qrToken = decodedText.trim();
+      html5QrCode.stop().catch(()=>{});
+      document.getElementById('qrResult').style.display = 'flex';
+      document.getElementById('qrError').style.display = 'none';
+      showToast('QR Code scanned!', 'success');
+      setTimeout(() => {
+        showStep(2);
+        getLocation();
+      }, 800);
+    },
+    (errorMsg) => {}
+  ).catch(err => {
+    document.getElementById('qrError').textContent = 'Camera error: ' + (err || 'Could not start scanner. Please allow camera access.');
+    document.getElementById('qrError').style.display = 'block';
+    document.getElementById('retryQrBtn').style.display = 'inline-block';
+  });
+}
+
+function retryQR() {
+  document.getElementById('qrResult').style.display = 'none';
+  document.getElementById('qrError').style.display = 'none';
+  document.getElementById('retryQrBtn').style.display = 'none';
+  initQRScanner();
+}
+
+function getLocation() {
+  const geoText = document.getElementById('geoText2');
+  const geoStatus = document.getElementById('geoStatus2');
+  const retryBtn = document.getElementById('retryGeoBtn');
+  geoStatus.className = 'geo-status loading';
+  document.getElementById('geoSpinner2').style.display = 'inline-block';
+  geoText.textContent = 'Getting your location...';
+  retryBtn.style.display = 'none';
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      userLatitude = pos.coords.latitude;
+      userLongitude = pos.coords.longitude;
+      geoText.textContent = `Location acquired (${userLatitude.toFixed(4)}, ${userLongitude.toFixed(4)})`;
+      geoStatus.className = 'geo-status success';
+      document.getElementById('geoSpinner2').style.display = 'none';
+      showToast('Location acquired!', 'success');
+      setTimeout(() => {
+        showStep(3);
+        startMarkCamera();
+      }, 800);
+    },
+    (err) => {
+      if (err.code === 1) {
+        geoText.textContent = 'Location denied — proceeding without geolocation verification.';
+        geoStatus.className = 'geo-status warning';
+        document.getElementById('geoSpinner2').style.display = 'none';
+        userLatitude = 0;
+        userLongitude = 0;
+        setTimeout(() => {
+          showStep(3);
+          startMarkCamera();
+        }, 800);
+      } else {
+        geoText.textContent = 'Could not get location: ' + err.message;
+        geoStatus.className = 'geo-status error';
+        document.getElementById('geoSpinner2').style.display = 'none';
+        retryBtn.style.display = 'inline-block';
+      }
+    },
+    { timeout: 10000, enableHighAccuracy: true }
+  );
+}
+
+async function startMarkCamera() {
+  const btn = document.getElementById('startMarkCameraBtn');
+  const statusText = document.getElementById('faceStatusText2');
+  const statusEl = document.getElementById('faceStatus2');
+  statusText.textContent = 'Loading AI models...';
+  statusEl.className = 'face-status loading';
+  btn.disabled = true;
+
+  try {
+    if (!markModelsLoaded) {
+      await loadFaceApiModels();
+      markModelsLoaded = true;
+    }
+    statusText.textContent = 'Starting camera...';
+    markCameraStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } });
+    const video = document.getElementById('markVideo');
+    video.srcObject = markCameraStream;
+    await video.play();
+    document.getElementById('captureMarkFaceBtn').disabled = false;
+    statusText.textContent = 'Position your face and click Capture & Verify';
+    statusEl.className = 'face-status ready';
+    btn.textContent = 'Restart Camera';
+    btn.disabled = false;
+  } catch(err) {
+    statusText.textContent = 'Error: ' + (err.message || 'Could not access camera');
+    statusEl.className = 'face-status error';
+    btn.disabled = false;
+  }
+}
+
+async function captureMarkFace() {
+  const btn = document.getElementById('captureMarkFaceBtn');
+  const statusText = document.getElementById('faceStatusText2');
+  const statusEl = document.getElementById('faceStatus2');
+  btn.disabled = true;
+  statusText.textContent = 'Detecting face...';
+  statusEl.className = 'face-status loading';
+
+  try {
+    const video = document.getElementById('markVideo');
+    const descriptor = await detectFaceDescriptor(video);
+    if (!descriptor) {
+      statusText.textContent = 'No face detected. Ensure good lighting and face is clearly visible.';
+      statusEl.className = 'face-status error';
+      btn.disabled = false;
+      return;
+    }
+    faceEmbedding = Array.from(descriptor);
+    statusText.textContent = 'Face detected! Submitting attendance...';
+    statusEl.className = 'face-status success';
+
+    if (markCameraStream) markCameraStream.getTracks().forEach(t => t.stop());
+    await submitAttendance();
+  } catch(err) {
+    statusText.textContent = 'Error: ' + (err.message || 'Face detection failed');
+    statusEl.className = 'face-status error';
+    btn.disabled = false;
+  }
+}
+
+async function submitAttendance() {
+  showStep(4);
+  try {
+    const res = await apiPost('/api/attendance/mark', {
+      qr_token: qrToken,
+      face_embedding: faceEmbedding,
+      latitude: userLatitude,
+      longitude: userLongitude
+    });
+    document.getElementById('resultSuccess').style.display = 'block';
+    document.getElementById('resultError').style.display = 'none';
+    showToast(res.message || 'Attendance marked!', 'success');
+  } catch(err) {
+    document.getElementById('resultSuccess').style.display = 'none';
+    document.getElementById('resultError').style.display = 'block';
+    document.getElementById('resultErrorMsg').textContent = err.message || 'Failed to mark attendance';
+  }
+}
+
+function restartFlow() {
+  qrToken = null;
+  userLatitude = null;
+  userLongitude = null;
+  faceEmbedding = null;
+  if (markCameraStream) markCameraStream.getTracks().forEach(t => t.stop());
+  document.getElementById('qrResult').style.display = 'none';
+  document.getElementById('qrError').style.display = 'none';
+  showStep(1);
+  initQRScanner();
+}
+
+showStep(1);
+initQRScanner();
+</script>
+{% endblock %}

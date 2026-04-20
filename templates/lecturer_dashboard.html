@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="dashboard">
+  <div class="page-header">
+    <div>
+      <h1 id="lecturerName">Dashboard</h1>
+      <p class="subtitle">Manage your sections and sessions</p>
+    </div>
+    <button class="btn btn-primary" onclick="openModal('createSectionModal')">+ Create Section</button>
+  </div>
+
+  <div id="sectionsGrid" class="sections-grid">
+    <div class="loading-state">
+      <div class="spinner-lg"></div>
+      <p>Loading sections...</p>
+    </div>
+  </div>
+</div>
+
+<!-- Create Section Modal -->
+<div id="createSectionModal" class="modal-overlay" style="display:none" onclick="closeModalOnOverlay(event,'createSectionModal')">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Create New Section</h3>
+      <button class="modal-close" onclick="closeModal('createSectionModal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Section Name</label>
+        <input type="text" id="newSectionName" class="form-control" placeholder="e.g. Introduction to CS — Group A"/>
+      </div>
+      <div id="newSectionCode" class="code-result" style="display:none">
+        Section code: <strong id="sectionCodeDisplay"></strong>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('createSectionModal')">Cancel</button>
+      <button class="btn btn-primary" id="createSectionBtn" onclick="createSection()">
+        <span class="btn-text">Create Section</span>
+        <span class="spinner" style="display:none"></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- View Students Modal -->
+<div id="studentsModal" class="modal-overlay" style="display:none" onclick="closeModalOnOverlay(event,'studentsModal')">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="studentsModalTitle">Students</h3>
+      <button class="modal-close" onclick="closeModal('studentsModal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="studentsList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Start Session Modal -->
+<div id="startSessionModal" class="modal-overlay" style="display:none" onclick="closeModalOnOverlay(event,'startSessionModal')">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Start Attendance Session</h3>
+      <button class="modal-close" onclick="closeModal('startSessionModal')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="sessionSectionId"/>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Duration (minutes)</label>
+          <input type="number" id="sessionDuration" class="form-control" value="10" min="1" max="180"/>
+        </div>
+        <div class="form-group">
+          <label>Radius (meters)</label>
+          <input type="number" id="sessionRadius" class="form-control" value="100" min="10" max="1000"/>
+        </div>
+      </div>
+      <div id="geoStatus" class="geo-status">
+        <div class="spinner" style="display:none" id="geoSpinner"></div>
+        <span id="geoText">Location will be captured when you start the session.</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('startSessionModal')">Cancel</button>
+      <button class="btn btn-success" id="startSessionBtn" onclick="startSession()">
+        <span class="btn-text">Start Session</span>
+        <span class="spinner" style="display:none"></span>
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+requireAuth('lecturer');
+let cachedSections = [];
+
+async function loadDashboard() {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  document.getElementById('lecturerName').textContent = `Welcome, ${user.name || 'Lecturer'}`;
+
+  try {
+    const res = await apiGet('/api/section/mine');
+    cachedSections = res.data || [];
+    renderSections(cachedSections);
+  } catch(err) {
+    document.getElementById('sectionsGrid').innerHTML = `<div class="empty-state"><p>Failed to load sections: ${err.message}</p></div>`;
+  }
+}
+
+function renderSections(sections) {
+  const grid = document.getElementById('sectionsGrid');
+  if (!sections.length) {
+    grid.innerHTML = `<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#a0aec0" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg><h3>No sections yet</h3><p>Create your first section to get started</p></div>`;
+    return;
+  }
+  grid.innerHTML = sections.map(s => `
+    <div class="section-card">
+      <div class="section-card-header">
+        <div class="section-info">
+          <h3>${escHtml(s.name)}</h3>
+          <div class="section-code-badge">${escHtml(s.code)}</div>
+        </div>
+        <div class="student-count">${s.student_count} <small>students</small></div>
+      </div>
+      <div class="section-card-footer">
+        <button class="btn btn-sm btn-outline" onclick="viewStudents(${s.id},'${escHtml(s.name)}')">View Students</button>
+        <button class="btn btn-sm btn-primary" onclick="openStartSession(${s.id})">Start Session</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function createSection() {
+  const name = document.getElementById('newSectionName').value.trim();
+  if (!name) { showToast('Please enter a section name', 'error'); return; }
+  const btn = document.getElementById('createSectionBtn');
+  setLoading(btn, true);
+  try {
+    const res = await apiPost('/api/section/create', { name });
+    document.getElementById('sectionCodeDisplay').textContent = res.data.code;
+    document.getElementById('newSectionCode').style.display = 'block';
+    showToast(`Section created! Code: ${res.data.code}`, 'success');
+    await loadDashboard();
+    document.getElementById('newSectionName').value = '';
+    setTimeout(() => closeModal('createSectionModal'), 2000);
+  } catch(err) {
+    showToast(err.message || 'Failed to create section', 'error');
+  } finally {
+    setLoading(btn, false);
+  }
+}
+
+async function viewStudents(sectionId, sectionName) {
+  document.getElementById('studentsModalTitle').textContent = `Students — ${sectionName}`;
+  document.getElementById('studentsList').innerHTML = '<div class="loading-state"><div class="spinner-lg"></div></div>';
+  openModal('studentsModal');
+  try {
+    const res = await apiGet(`/api/section/${sectionId}/students`);
+    const students = res.data || [];
+    if (!students.length) {
+      document.getElementById('studentsList').innerHTML = '<p class="text-muted text-center">No students enrolled yet.</p>';
+      return;
+    }
+    document.getElementById('studentsList').innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Email</th><th>Branch</th></tr></thead>
+        <tbody>${students.map(s => `<tr><td>${escHtml(s.name)}</td><td>${escHtml(s.email)}</td><td>${escHtml(s.branch||'—')}</td></tr>`).join('')}</tbody>
+      </table>`;
+  } catch(err) {
+    document.getElementById('studentsList').innerHTML = `<p class="error-msg">${err.message}</p>`;
+  }
+}
+
+function openStartSession(sectionId) {
+  document.getElementById('sessionSectionId').value = sectionId;
+  document.getElementById('geoText').textContent = 'Location will be captured when you start the session.';
+  document.getElementById('geoStatus').className = 'geo-status';
+  openModal('startSessionModal');
+}
+
+async function startSession() {
+  const sectionId = document.getElementById('sessionSectionId').value;
+  const duration = parseInt(document.getElementById('sessionDuration').value) || 10;
+  const radius = parseFloat(document.getElementById('sessionRadius').value) || 100;
+  const btn = document.getElementById('startSessionBtn');
+  const geoText = document.getElementById('geoText');
+  const geoSpinner = document.getElementById('geoSpinner');
+  const geoStatus = document.getElementById('geoStatus');
+
+  geoStatus.className = 'geo-status loading';
+  geoSpinner.style.display = 'inline-block';
+  geoText.textContent = 'Getting your location...';
+
+  try {
+    const pos = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, enableHighAccuracy: true });
+    });
+    geoText.textContent = `Location acquired (${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)})`;
+    geoStatus.className = 'geo-status success';
+    geoSpinner.style.display = 'none';
+
+    setLoading(btn, true);
+    const res = await apiPost('/api/session/start', {
+      section_id: parseInt(sectionId),
+      duration_minutes: duration,
+      latitude: pos.coords.latitude,
+      longitude: pos.coords.longitude,
+      radius_meters: radius
+    });
+    closeModal('startSessionModal');
+    showToast('Session started!', 'success');
+    window.location.href = `/session/${res.data.session_id}`;
+  } catch(err) {
+    if (err.code === 1) {
+      geoText.textContent = 'Location denied. Starting without geo-restriction...';
+      geoStatus.className = 'geo-status warning';
+      geoSpinner.style.display = 'none';
+      setLoading(btn, true);
+      try {
+        const res = await apiPost('/api/session/start', {
+          section_id: parseInt(sectionId),
+          duration_minutes: duration,
+          latitude: null,
+          longitude: null,
+          radius_meters: radius
+        });
+        closeModal('startSessionModal');
+        showToast('Session started (no geo-restriction)!', 'success');
+        window.location.href = `/session/${res.data.session_id}`;
+      } catch(e) {
+        showToast(e.message || 'Failed to start session', 'error');
+      } finally {
+        setLoading(btn, false);
+      }
+    } else {
+      geoText.textContent = 'Could not get location: ' + (err.message || 'Unknown error');
+      geoStatus.className = 'geo-status error';
+      geoSpinner.style.display = 'none';
+      setLoading(btn, false);
+    }
+  }
+}
+
+loadDashboard();
+</script>
+{% endblock %}

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Smart Attendance System</title>
+<link rel="stylesheet" href="/static/css/style.css"/>
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+<nav class="navbar">
+  <div class="nav-brand">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+    <span>Smart Attendance</span>
+  </div>
+  <div class="nav-links" id="navLinks">
+    <a href="/" class="nav-link">Home</a>
+    <a href="#" class="nav-link" id="dashboardLink" style="display:none">Dashboard</a>
+    <a href="#" class="nav-link danger" id="logoutBtn" style="display:none" onclick="logout()">Logout</a>
+    <a href="/login" class="nav-link" id="loginNavBtn">Login</a>
+  </div>
+</nav>
+<div id="toastContainer" class="toast-container"></div>
+<main class="main-content">
+{% block content %}{% endblock %}
+</main>
+<script src="/static/js/common.js"></script>
+{% block scripts %}{% endblock %}
+<script>
+(function(){
+  const token = localStorage.getItem('token');
+  const user = JSON.parse(localStorage.getItem('user')||'null');
+  const dashLink = document.getElementById('dashboardLink');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const loginBtn = document.getElementById('loginNavBtn');
+  if(token && user){
+    dashLink.style.display='inline-block';
+    dashLink.href = user.role==='lecturer' ? '/lecturer' : '/student';
+    logoutBtn.style.display='inline-block';
+    loginBtn.style.display='none';
+  }
+})();
+</script>
+</body>
+</html>
